@@ -354,13 +354,15 @@ func (d *databasusAPI) backups(ctx context.Context, name string) (*Backup, error
 		b.Count++
 		b.Stored += int64(x.Size * mb)
 	}
-	if len(all) > 0 {
-		last := all[0]
-		if last.Status == "IN_PROGRESS" && len(all) > 1 {
-			last = all[1] // the one that's running has no outcome yet
+	// "Last" is the newest backup with an outcome: one running has none yet, and
+	// one someone canceled says nothing about how backups are going.
+	for _, last := range all {
+		if last.Status != "COMPLETED" && last.Status != "FAILED" {
+			continue
 		}
 		b.LastAt, b.LastOK, b.LastTook = last.Created, last.Status == "COMPLETED", time.Duration(last.Duration)*time.Millisecond
 		b.LastBytes, b.DBBytes = int64(last.Size*mb), int64(last.Raw*mb)
+		break
 	}
 	return b, nil
 }

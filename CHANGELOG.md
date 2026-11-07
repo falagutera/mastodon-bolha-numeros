@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.2.1 — 2026-11-07
+
+- Databasus: a canceled backup no longer counts as the last one (it said "failed" until the next run); "last" is the newest backup that completed or failed.
+
 ## 0.2.0 — 2026-11-07
 
 Backup section, and nothing about bolha.us built in.

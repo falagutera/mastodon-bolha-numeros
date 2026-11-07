@@ -116,7 +116,7 @@ func TestDatabasus(t *testing.T) {
 			return map[string]any{"createdAt": now.Add(-ago), "status": status, "durationMs": 2249904, "sizeMb": size, "rawDatabaseSizeMb": 97467.86}
 		}
 		if r.URL.Query().Get("after") == "" {
-			json.NewEncoder(w).Encode(map[string]any{"items": []any{lb(time.Minute, "IN_PROGRESS", 3), lb(time.Hour, "COMPLETED", 1024)}, "nextCursor": "p2"})
+			json.NewEncoder(w).Encode(map[string]any{"items": []any{lb(time.Minute, "IN_PROGRESS", 3), lb(2*time.Minute, "CANCELED", 2), lb(time.Hour, "COMPLETED", 1024)}, "nextCursor": "p2"})
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]any{"items": []any{lb(25*time.Hour, "FAILED", 10), lb(49*time.Hour, "COMPLETED", 2048)}})
@@ -128,7 +128,7 @@ func TestDatabasus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The running backup has no outcome yet: "last" is the completed one before it.
+	// Running and canceled backups have no outcome: "last" is the completed one before them.
 	if b.RetentionDays != 7 || b.DailyUTC != "03:00" || !b.Encrypted || b.Count != 2 || !b.LastOK ||
 		!b.LastAt.Equal(now.Add(-time.Hour)) || b.LastBytes != 1024<<20 || b.Stored != 3072<<20 || b.LastTook/time.Minute != 37 {
 		t.Errorf("databasus: %+v", b)
