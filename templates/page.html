@@ -27,7 +27,7 @@
   <p class="soon">{{.T.collecting}}</p>
 {{else}}
   <section class="tiles top">
-    {{range $i, $t := .Tiles}}<div class="tile{{if eq $i 0}} hl{{end}}"><div class="lab">{{$t.Label}}</div><div class="val{{if eq $i 4}} date{{end}}">{{$t.Value}}</div>{{if $t.Sub}}<div class="sub">{{$t.Sub}}</div>{{end}}</div>
+    {{range $i, $t := .Tiles}}<div class="tile{{if eq $i 0}} hl{{end}}"><div class="lab">{{$t.Label}}</div><div class="val">{{$t.Value}}</div>{{if $t.Sub}}<div class="sub">{{$t.Sub}}</div>{{end}}</div>
     {{end}}
   </section>
 

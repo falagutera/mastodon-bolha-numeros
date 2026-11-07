@@ -143,7 +143,7 @@ func TestPage(t *testing.T) {
 	if !strings.Contains(csp, "img-src 'self' https://cache.example https://inst.example") || strings.Contains(csp, "unsafe") {
 		t.Errorf("csp: %s", csp)
 	}
-	for _, want := range []string{"Ana &lt;Lima&gt;", "@ana", "900 no total", "2.301", "2,31 mi", "22 mai 2022", "há 4 anos",
+	for _, want := range []string{"Ana &lt;Lima&gt;", "@ana", "900 no total", "2.301", "mai 2022", "nos últimos 30 dias · 39%", "há 4 anos",
 		`id="p-d" checked`, "Notícia", "news.example", "Foto de @ana", "1 voto", "196 denúncias", "Português", "XX",
 		"mastodon.social", "4.7.5", "85,2 GB", "1,0 TB", "Ninguém por aqui ainda", `href="/en/"`, "#nonumeros"} {
 		if !strings.Contains(body, want) {
@@ -157,7 +157,7 @@ func TestPage(t *testing.T) {
 	if strings.Contains(body, "style=") || strings.Contains(body, "<script") {
 		t.Error("inline style or script on the page: the CSP would block it")
 	}
-	if _, body := get("/en/"); !strings.Contains(body, "Most toots") || !strings.Contains(body, "May 22, 2022") || !strings.Contains(body, "2.31M") {
+	if _, body := get("/en/"); !strings.Contains(body, "Most toots") || !strings.Contains(body, "May 2022") {
 		t.Error("english page")
 	}
 	res, body = get("/numeros.json")

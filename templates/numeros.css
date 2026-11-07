@@ -30,13 +30,11 @@
   .stamp{margin-top:18px;display:inline-flex;gap:10px;align-items:center;font-family:var(--mono);font-size:.76rem;color:var(--text-dim);border:1px solid var(--border);border-radius:999px;padding:6px 14px;background:var(--surface)}
   .stamp i{width:8px;height:8px;border-radius:50%;background:#2fb36b;display:inline-block}
 
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:26px 0 10px}
-  .tile{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow);min-width:0}
-  .tile .lab{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);line-height:1.35}
-  /* labels that may wrap keep two lines, so every value sits on the same line */
-  .tiles.top .lab{min-height:2.7em}
-  .tile .val.date{font-size:clamp(1.3rem,2.4vw,1.6rem);white-space:nowrap;line-height:1.38}
-  .tile .val{font-size:2rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+  .tiles{align-items:stretch;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:26px 0 10px}
+  .tile{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow);min-width:0;display:flex;flex-direction:column}
+  .tile .lab{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .tile .val{white-space:nowrap;font-size:2rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
   .tile .sub{font-size:.82rem;color:var(--text-faint);margin-top:2px}
   .tile.hl{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-soft),var(--surface) 70%)}
 

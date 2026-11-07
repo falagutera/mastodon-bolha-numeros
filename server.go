@@ -188,9 +188,9 @@ func (s *server) view(lang string, snap *Snapshot, now time.Time) view {
 	v.Tiles = []tile{
 		{t["users"], n(snap.Users), t["users_sub"]},
 		{t["active"], n(snap.Active), activeSub},
-		{t["posts"], s.short(snap.Posts, lang), t["posts_sub"]},
+		{t["posts"], n(snap.Posts), t["posts_sub"]},
 		{t["servers"], n(snap.Servers), t["servers_sub"]},
-		{t["since"], s.date(snap.Since, lang), age(snap.Since, now, lang)},
+		{t["since"], s.month(snap.Since, lang), age(snap.Since, now, lang)},
 	}
 
 	for _, p := range periods {
@@ -299,16 +299,13 @@ func (s *server) date(t time.Time, lang string) string {
 	return fmt.Sprintf("%d %s %d", t.Day(), m, t.Year())
 }
 
-// short: 2312345 -> "2,31 mi" / "2.31M"; below a million, the full number.
-func (s *server) short(x int64, lang string) string {
-	if x < 1_000_000 {
-		return formatInt(x, lang)
+// month: "mai 2022" / "May 2022", so the date fits a tile like the other numbers.
+func (s *server) month(t time.Time, lang string) string {
+	if t.IsZero() {
+		return "—"
 	}
-	f := strconv.FormatFloat(float64(x)/1e6, 'f', 2, 64)
-	if lang == "en" {
-		return f + "M"
-	}
-	return strings.Replace(f, ".", ",", 1) + " mi"
+	t = t.In(s.cfg.loc)
+	return fmt.Sprintf("%s %d", monthNames[lang][t.Month()-1], t.Year())
 }
 
 func (s *server) ago(t, now time.Time, lang string) string {

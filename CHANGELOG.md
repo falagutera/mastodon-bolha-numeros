@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.1.3 — 2026-11-07
+
+- The top numbers follow the server section's layout: one-line labels, the detail on the line below ("in the last 30 days · 12%", "known across the fediverse"), every tile the same height, every number the same size. The start date shows month and year.
+
 ## 0.1.2 — 2026-11-07
 
 Layout fixes after a first look on bolha.us.
