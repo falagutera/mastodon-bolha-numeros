@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.3.1 — 2026-11-07
+
+- The card of people from other servers who mention the instance the most is now "Menções externas" / "External mentions".
+
 ## 0.3.0 — 2026-11-07
 
 - **Platform versions:** `NUMEROS_PLATFORM=kubernetes rancher` adds Kubernetes (with the distribution: RKE2, K3s, EKS, GKE) and Rancher to the versions table, read from the cluster.
