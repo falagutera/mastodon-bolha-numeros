@@ -76,7 +76,8 @@ func TestHelpers(t *testing.T) {
 
 func testConfig() config {
 	loc, _ := time.LoadLocation("America/Sao_Paulo")
-	return config{instance: "https://inst.example", media: "https://cache.example", loc: loc, every: time.Hour, offset: 7 * time.Minute}
+	return config{instance: "https://inst.example", media: "https://cache.example", loc: loc, every: time.Hour, offset: 7 * time.Minute,
+		name: "inst.example", usPT: "a bolha", usEN: "the bubble", mediaStorage: "Wasabi"}
 }
 
 func testSnapshot(now time.Time) *Snapshot {
@@ -145,7 +146,8 @@ func TestPage(t *testing.T) {
 	}
 	for _, want := range []string{"Ana &lt;Lima&gt;", "@ana", "900 no total", "2.301", "mai 2022", "nos últimos 30 dias · 39%", "há 4 anos",
 		`id="p-d" checked`, "Notícia", "news.example", "Foto de @ana", "1 voto", "196 denúncias", "Português", "XX",
-		"mastodon.social", "4.7.5", "85,2 GB", "1,0 TB", "Ninguém por aqui ainda", `href="/en/"`, "#nonumeros"} {
+		"mastodon.social", "4.7.5", "85,2 GB", "1,0 TB", "Mídia (Wasabi)", "Servidores que mais falam com a bolha",
+		"inst.example em <em>números</em>", "<title>inst.example em números</title>", "Ninguém por aqui ainda", `href="/en/"`, "#nonumeros"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %q", want)
 		}
@@ -366,5 +368,50 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 	}
 	if len(s.Software) != 1 || s.Software[0].Key != "postgresql" || len(s.Space) != 1 {
 		t.Errorf("without the admin API, the database's own version and size: %+v %+v", s.Software, s.Space)
+	}
+}
+
+// The instance's names go into the texts; the ones rendered as HTML are escaped,
+// a configured headline is used as is, and an unset note shows nothing.
+func TestInstanceTexts(t *testing.T) {
+	cfg := testConfig()
+	cfg.name, cfg.usPT = "x<b>", "a <casa>"
+	srv, err := newServer(cfg, &collector{cfg: cfg, now: time.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pt := srv.texts("pt")
+	if pt["h1"] != "x&lt;b&gt; em <em>números</em>." || pt["talkers"] != "Servidores que mais falam com a <casa>" || pt["bk_note"] != "" {
+		t.Errorf("texts: %q %q %q", pt["h1"], pt["talkers"], pt["bk_note"])
+	}
+	cfg.headlinePT, cfg.backupNotePT = "A bolha, em <em>números</em>.", "nota"
+	srv.cfg = cfg
+	if pt := srv.texts("pt"); pt["h1"] != cfg.headlinePT || pt["bk_note"] != "nota" {
+		t.Errorf("configured: %q %q", pt["h1"], pt["bk_note"])
+	}
+	if en := srv.texts("en"); en["h1"] != "x&lt;b&gt; in <em>numbers</em>." {
+		t.Errorf("en keeps its own headline: %q", en["h1"])
+	}
+}
+
+func TestBackupSources(t *testing.T) {
+	env := map[string]string{"NUMEROS_BACKUP_SOURCES": "databasus", "NUMEROS_DATABASUS_URL": "http://10.0.0.1:4005",
+		"NUMEROS_DATABASUS_EMAIL": "e@x", "NUMEROS_DATABASUS_PASSWORD": "p", "NUMEROS_DATABASUS_DATABASE": "db", "NUMEROS_DATABASUS_TITLE": "Banco"}
+	srcs, err := backupSources(testConfig(), func(k string) string { return env[k] })
+	if err != nil || len(srcs) != 1 || srcs[0].title != "Banco" || srcs[0].titleEN != "Database" || srcs[0].sub != "postgresql · databasus" {
+		t.Fatalf("sources: %+v %v", srcs, err)
+	}
+	for name, e := range map[string]map[string]string{
+		"unknown":       {"NUMEROS_BACKUP_SOURCES": "restic"},
+		"no database":   {"NUMEROS_BACKUP_SOURCES": "databasus", "NUMEROS_DATABASUS_URL": "http://x", "NUMEROS_DATABASUS_EMAIL": "e", "NUMEROS_DATABASUS_PASSWORD": "p"},
+		"bad url":       {"NUMEROS_BACKUP_SOURCES": "databasus", "NUMEROS_DATABASUS_URL": "x"},
+		"velero no sch": {"NUMEROS_BACKUP_SOURCES": "velero"},
+	} {
+		if _, err := backupSources(testConfig(), func(k string) string { return e[k] }); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if srcs, err := backupSources(testConfig(), func(string) string { return "" }); err != nil || len(srcs) != 0 {
+		t.Errorf("none configured: %v %v", srcs, err)
 	}
 }

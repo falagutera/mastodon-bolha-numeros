@@ -12,7 +12,7 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <a class="brand" href="{{if eq .Lang "en"}}/en/{{else}}/{{end}}"><span class="bubble"></span>numeros<span class="dom">.bolha.us</span></a>
+    <a class="brand" href="{{if eq .Lang "en"}}/en/{{else}}/{{end}}"><span class="bubble"></span>numeros<span class="dom">.{{.Name}}</span></a>
     <a class="toggle" href="{{.OtherHref}}" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}">{{.Other}}</a>
   </div>
 
@@ -88,13 +88,21 @@
     {{if .Space}}<div class="card"><h3>{{.T.space}}</h3>
       <table class="sw">{{range .Space}}<tr><td>{{.Key}}</td><td>{{.Value}}</td></tr>{{end}}</table></div>{{end}}
   </div>
+  {{if .Backups}}<div class="cat"><h2>{{.T.sec_backup}}</h2><span class="rule"></span><span class="note">{{.T.bk_measured}}</span></div>
+  <div class="two">
+    {{range .Backups}}<div class="card bk"><h3>{{.Title}}<small>{{.Sub}}</small></h3>
+      <div class="ret"><b>{{.Big}}</b><span>{{.BigUnit}}</span></div>
+      <table class="sw">{{range .Rows}}<tr><td class="k">{{.Key}}</td><td>{{if .Dot}}<span class="st {{.Dot}}"><i></i>{{.Value}}</span>{{else}}{{.Value}}{{end}}</td></tr>{{end}}</table></div>
+    {{end}}
+  </div>
+  {{if .T.bk_note}}<p class="note">{{.T.bk_note}}</p>{{end}}{{end}}
   <div class="cat"><h2>{{.T.sec_soon}}</h2><span class="rule"></span></div>
   <div class="soon">{{.T.soon}}</div>
 {{end}}
 
   <footer>
     <div><b>{{.T.how_h}}</b> {{raw .T.how}}</div>
-    <div>numeros {{.Version}} · <a href="https://gitlab.gutocarvalho.net/open/bolha/numeros">{{.T.code}}</a> · <a href="/release-notes">{{.T.news}}</a> · {{.T.part_of}} <a href="https://bolha.io">bolha.io</a></div>
+    <div>numeros {{.Version}} · <a href="https://gitlab.gutocarvalho.net/open/bolha/numeros">{{.T.code}}</a> · <a href="/release-notes">{{.T.news}}</a>{{if .ParentURL}} · {{.T.part_of}} <a href="{{.ParentURL}}">{{.ParentName}}</a>{{end}}</div>
   </footer>
 </div>
 </body>

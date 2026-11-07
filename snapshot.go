@@ -37,6 +37,8 @@ type Snapshot struct {
 	Software []Item `json:"software"`
 	Space    []Item `json:"space"`
 
+	Backups []Backup `json:"backups,omitempty"` // application (velero), then database (databasus)
+
 	// Blocks that failed in this round and kept the previous round's values.
 	Stale []string `json:"stale,omitempty"`
 }

@@ -16,11 +16,12 @@ import (
 // collector builds a snapshot every round and keeps the last one. A block that
 // fails keeps the previous round's values and is listed as stale.
 type collector struct {
-	cfg    config
-	db     *store
-	admin  *adminAPI // nil: no admin token, those blocks are left out
-	client *http.Client
-	now    func() time.Time
+	cfg     config
+	db      *store
+	admin   *adminAPI // nil: no admin token, those blocks are left out
+	client  *http.Client
+	backups []backupSource // the backup cards, in order
+	now     func() time.Time
 
 	mu   sync.RWMutex
 	last *Snapshot
@@ -179,6 +180,23 @@ func (c *collector) round(ctx context.Context) {
 		cancel()
 	}
 
+	if len(c.backups) > 0 {
+		var cards []Backup
+		bctx, cancel := context.WithTimeout(ctx, time.Minute)
+		for _, src := range c.backups {
+			b, err := src.mod.collect(bctx)
+			if err != nil {
+				stale(src.id, err)
+				cards = append(cards, prevBackup(prev, src.id)...)
+				continue
+			}
+			b.Source, b.Title, b.TitleEN, b.Sub = src.id, src.title, src.titleEN, src.sub
+			cards = append(cards, *b)
+		}
+		cancel()
+		s.Backups = cards
+	}
+
 	s.At = start
 	s.Took = c.now().Sub(start)
 	s.Next = nextRound(start, c.cfg.every, c.cfg.offset)
@@ -197,4 +215,17 @@ func setItem(items []Item, it Item) []Item {
 		}
 	}
 	return append(items, it)
+}
+
+// prevBackup is the last round's card of a tool, kept when this round failed.
+func prevBackup(prev *Snapshot, tool string) []Backup {
+	if prev == nil {
+		return nil
+	}
+	for _, b := range prev.Backups {
+		if b.Source == tool {
+			return []Backup{b}
+		}
+	}
+	return nil
 }

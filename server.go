@@ -64,7 +64,7 @@ func (s *server) routes() http.Handler {
 	})
 	mux.HandleFunc("GET /numeros.json", s.json)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
-	relnotes.Register(mux, relnotes.PageOptions{App: "numeros", Domain: "bolha.us", Version: version,
+	relnotes.Register(mux, relnotes.PageOptions{App: "numeros", Domain: s.cfg.name, Version: version,
 		Source: "https://gitlab.gutocarvalho.net/open/bolha/numeros", LangKey: "numeros-lang", Style: string(s.css)}, releases)
 	return headers(mux, s.csp)
 }
@@ -128,6 +128,13 @@ type barRow struct {
 
 type kv struct{ Key, Value string }
 
+type bkRow struct{ Key, Value, Dot string } // Dot: "ok", "bad" or ""
+
+type bkCard struct {
+	Title, Sub, Big, BigUnit string
+	Rows                     []bkRow
+}
+
 type view struct {
 	Lang, Other, OtherHref string
 	T                      map[string]string
@@ -147,6 +154,10 @@ type view struct {
 	Clients, Languages     []barRow
 	Talkers                []barRow
 	Software, Space        []kv
+	Backups                []bkCard
+	BackupNote             string
+	Name                   string
+	ParentName, ParentURL  string
 	Version                string
 }
 
@@ -163,9 +174,37 @@ func (s *server) page(w http.ResponseWriter, lang string) {
 	w.Write(b.Bytes())
 }
 
+// texts fills in the instance's names: {name}, {us} and {storage}. h1 and how
+// are rendered as HTML, so what goes into them is escaped first; a configured
+// headline is the operator's own HTML.
+func (s *server) texts(lang string) map[string]string {
+	us, headline, note := s.cfg.usPT, s.cfg.headlinePT, s.cfg.backupNotePT
+	if lang == "en" {
+		us, headline, note = s.cfg.usEN, s.cfg.headlineEN, s.cfg.backupNoteEN
+	}
+	storage := ""
+	if s.cfg.mediaStorage != "" {
+		storage = " (" + s.cfg.mediaStorage + ")"
+	}
+	t := make(map[string]string, len(strs[lang])+1)
+	for k, v := range strs[lang] {
+		name, u, st := s.cfg.name, us, storage
+		if k == "h1" || k == "how" {
+			name, u, st = template.HTMLEscapeString(name), template.HTMLEscapeString(u), template.HTMLEscapeString(st)
+		}
+		t[k] = strings.NewReplacer("{name}", name, "{us}", u, "{storage}", st).Replace(v)
+	}
+	if headline != "" {
+		t["h1"] = headline
+	}
+	t["bk_note"] = note
+	return t
+}
+
 func (s *server) view(lang string, snap *Snapshot, now time.Time) view {
-	t := strs[lang]
-	v := view{Lang: lang, T: t, Other: t["lang_other"], OtherHref: t["lang_href"], Version: version}
+	t := s.texts(lang)
+	v := view{Lang: lang, T: t, Other: t["lang_other"], OtherHref: t["lang_href"], Version: version,
+		Name: s.cfg.name, ParentName: s.cfg.parentName, ParentURL: s.cfg.parentURL}
 	if snap == nil {
 		return v
 	}
@@ -272,7 +311,83 @@ func (s *server) view(lang string, snap *Snapshot, now time.Time) view {
 		}
 		v.Space = append(v.Space, kv{name, formatBytes(it.Bytes, lang)})
 	}
+	for _, b := range snap.Backups {
+		v.Backups = append(v.Backups, s.backupCard(b, t, lang, now))
+	}
 	return v
+}
+
+func (s *server) backupCard(b Backup, t map[string]string, lang string, now time.Time) bkCard {
+	n := func(x int64) string { return formatInt(x, lang) }
+	c := bkCard{Title: b.Title, Sub: b.Sub, Big: "—", BigUnit: t["bk_days"]}
+	if lang == "en" && b.TitleEN != "" {
+		c.Title = b.TitleEN
+	}
+	switch {
+	case b.RetentionDays > 0:
+		c.Big = strconv.Itoa(b.RetentionDays)
+	case b.RetentionKeep > 0:
+		c.Big, c.BigUnit = strconv.Itoa(b.RetentionKeep), t["bk_keep"]
+	}
+	if at := s.dailyLocal(b.DailyUTC, now); at != "" {
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_freq"], Value: fmt.Sprintf(t["bk_daily"], at)})
+	}
+	if !b.LastAt.IsZero() {
+		val := s.when(b.LastAt, now, t, lang)
+		if b.LastTook >= time.Minute {
+			val += fmt.Sprintf(" · %d min", int(b.LastTook.Minutes()))
+		}
+		dot := "ok"
+		if !b.LastOK {
+			dot, val = "bad", val+" · "+t["bk_failed"]
+		}
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_last"], Value: val, Dot: dot})
+	}
+	count := fmt.Sprintf(t["bk_count"], n(b.Count))
+	if b.Encrypted {
+		count = fmt.Sprintf(t["bk_count_enc"], n(b.Count))
+	}
+	c.Rows = append(c.Rows, bkRow{Key: t["bk_kept"], Value: count})
+	if b.AppBytes > 0 {
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_app_vol"], Value: fmt.Sprintf(t["bk_per"], formatBytes(b.AppBytes, lang))})
+	}
+	if b.TotalBytes > 0 {
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_cluster"], Value: fmt.Sprintf(t["bk_per"], formatBytes(b.TotalBytes, lang))})
+	}
+	if b.LastBytes > 0 {
+		val := formatBytes(b.LastBytes, lang)
+		if b.DBBytes > 0 {
+			val = fmt.Sprintf(t["bk_dump_of"], val, formatBytes(b.DBBytes, lang))
+		}
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_last_dump"], Value: val})
+	}
+	if b.Stored > 0 {
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_stored"], Value: formatBytes(b.Stored, lang)})
+	}
+	return c
+}
+
+// dailyLocal turns a daily "HH:MM" in UTC into the local time of day.
+func (s *server) dailyLocal(hhmm string, now time.Time) string {
+	at, err := time.Parse("15:04", hhmm)
+	if err != nil {
+		return ""
+	}
+	u := now.UTC()
+	return time.Date(u.Year(), u.Month(), u.Day(), at.Hour(), at.Minute(), 0, 0, time.UTC).In(s.cfg.loc).Format("15:04")
+}
+
+// when: "hoje às 01:00", "ontem às 01:00" or the date.
+func (s *server) when(at, now time.Time, t map[string]string, lang string) string {
+	l, nl := at.In(s.cfg.loc), now.In(s.cfg.loc)
+	hm := l.Format("15:04")
+	switch {
+	case l.Format("2006-01-02") == nl.Format("2006-01-02"):
+		return fmt.Sprintf(t["bk_today"], hm)
+	case l.Format("2006-01-02") == nl.AddDate(0, 0, -1).Format("2006-01-02"):
+		return fmt.Sprintf(t["bk_yesterday"], hm)
+	}
+	return s.date(at, lang) + " " + hm
 }
 
 func pct(x, top int64) int {

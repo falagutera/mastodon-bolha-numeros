@@ -111,3 +111,11 @@
   .link .by{color:var(--text-faint);font-family:var(--sans)}
   .h4{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:600;margin:18px 0 10px}
   .h4.first{margin-top:0}
+  .bk .ret{display:flex;align-items:baseline;gap:10px;padding:4px 18px 14px}
+  .bk .ret b{font-size:2rem;font-weight:800;letter-spacing:-.03em;line-height:1}
+  .bk .ret span{color:var(--text-dim);font-size:.9rem}
+  table.sw td.k{color:var(--text-dim)}
+  .st{display:inline-flex;align-items:center;gap:6px}
+  .st i{width:8px;height:8px;border-radius:50%;display:inline-block;background:#2fb36b}
+  .st.bad i{background:#e5484d}
+  .st.bad{color:#e5484d}

@@ -38,6 +38,16 @@ type config struct {
 	every        time.Duration
 	offset       time.Duration
 	snapshotPath string
+
+	// What the page calls things; see README "Your instance".
+	name                  string // "bolha.us"; default: the instance's host
+	usPT, usEN            string // "a bolha" / "the bubble"; default "{name}"
+	headlinePT            string // raw HTML for the <h1>; default "{name} em <em>números</em>."
+	headlineEN            string
+	mediaStorage          string // shown as "Mídia (X)"
+	backupNotePT          string // note under the backup cards
+	backupNoteEN          string
+	parentName, parentURL string // "part of ..." in the footer
 }
 
 func env(k, def string) string {
@@ -63,6 +73,18 @@ func loadConfig() (config, error) {
 		searchPass:   os.Getenv("NUMEROS_SEARCH_PASSWORD"),
 		searchPrefix: env("NUMEROS_SEARCH_PREFIX", ""),
 		snapshotPath: env("NUMEROS_SNAPSHOT", ""),
+	}
+	pub, _ := url.Parse(c.instance)
+	c.name = env("NUMEROS_NAME", pub.Host)
+	c.usPT, c.usEN = env("NUMEROS_US", c.name), env("NUMEROS_US_EN", c.name)
+	c.headlinePT, c.headlineEN = env("NUMEROS_HEADLINE", ""), env("NUMEROS_HEADLINE_EN", "")
+	c.mediaStorage = env("NUMEROS_MEDIA_STORAGE", "")
+	c.backupNotePT, c.backupNoteEN = env("NUMEROS_BACKUP_NOTE", ""), env("NUMEROS_BACKUP_NOTE_EN", "")
+	c.parentName, c.parentURL = env("NUMEROS_PARENT_NAME", ""), env("NUMEROS_PARENT_URL", "")
+	if c.parentURL != "" {
+		if p, err := url.Parse(c.parentURL); err != nil || p.Scheme != "https" || p.Host == "" {
+			return c, fmt.Errorf("config: NUMEROS_PARENT_URL %q must be an https URL", c.parentURL)
+		}
 	}
 	c.media = strings.TrimRight(env("NUMEROS_MEDIA_URL", c.instance+"/system"), "/")
 	for _, u := range []string{c.instance, c.media} {
@@ -128,6 +150,9 @@ func main() {
 	col := &collector{cfg: cfg, db: db, client: client, now: time.Now}
 	if cfg.adminToken != "" {
 		col.admin = &adminAPI{base: cfg.instance, token: cfg.adminToken, client: client}
+	}
+	if col.backups, err = backupSources(cfg, func(k string) string { return strings.TrimSpace(os.Getenv(k)) }); err != nil {
+		log.Fatal(err)
 	}
 	col.load()
 	srv, err := newServer(cfg, col)

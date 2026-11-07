@@ -1,6 +1,6 @@
 # numeros
 
-A one-page view of a Mastodon instance in numbers: who posts the most, what goes
+A one-page view of any Mastodon instance in numbers: who posts the most, what goes
 around, and how the server is doing inside. Runs at [numeros.bolha.us](https://numeros.bolha.us)
 for bolha.us, in Portuguese (`/`) and English (`/en/`). AGPL-3.0.
 
@@ -12,6 +12,7 @@ for bolha.us, in Portuguese (`/`) and English (`/en/`). AGPL-3.0.
 - **Software and space:** versions and space used, as the admin dashboard reports them
   (Mastodon, Ruby, PostgreSQL, Redis, search, libvips, FFmpeg; database, Redis, media), plus the
   search index size from OpenSearch/Elasticsearch.
+- **Backup** (optional, pluggable): retention, schedule, last run and sizes, one card per backup tool.
 - `/numeros.json` serves the same data.
 
 ## Privacy
@@ -41,6 +42,42 @@ Ranking people in public is the delicate part, so:
 | `NUMEROS_TIMEZONE` | `America/Sao_Paulo` | "today" and the times shown |
 | `NUMEROS_EVERY` / `NUMEROS_OFFSET` | `1h` / `7m` | collect every hour at :07 |
 | `NUMEROS_SNAPSHOT` | | file to keep the last snapshot across restarts |
+
+### Your instance
+
+Nothing about bolha.us is built in; the page takes its names from the config.
+
+| Variable | Default | |
+|---|---|---|
+| `NUMEROS_NAME` | the instance's host | used in the title, the header and the texts (`{name}`) |
+| `NUMEROS_US` / `NUMEROS_US_EN` | `NUMEROS_NAME` | how the page refers to the instance in "servers talking to …" ("a bolha" / "the bubble") |
+| `NUMEROS_HEADLINE` / `_EN` | "{name} em <em>números</em>." | the `<h1>`, as HTML |
+| `NUMEROS_MEDIA_STORAGE` | | shown as "Media (X)", e.g. `Wasabi` |
+| `NUMEROS_PARENT_NAME` / `_URL` | | "part of …" link in the footer |
+| `NUMEROS_BACKUP_NOTE` / `_EN` | | a note under the backup cards |
+
+### External services
+
+Versions and sizes of PostgreSQL, Redis, the search cluster and the media come from the
+instance's own admin dashboard (`NUMEROS_ADMIN_TOKEN`), which reports whatever Mastodon is
+connected to: managed or external PostgreSQL, Redis and Elasticsearch/OpenSearch work as they
+are. The only direct reads are the database itself (read-only user) and, if set,
+`NUMEROS_SEARCH_URL` for the index size.
+
+### Backup modules
+
+`NUMEROS_BACKUP_SOURCES` lists the backup cards, in order (`velero databasus`); empty, the
+section is left out. Each module reads its own variables, and every card's texts can be
+changed with `NUMEROS_<MODULE>_TITLE`, `_TITLE_EN` and `_SUB`.
+
+| Module | Variables | Reads |
+|---|---|---|
+| `velero` | `NUMEROS_VELERO_SCHEDULE` (required), `_NAMESPACE` (`velero`), `_APP_NAMESPACE` (the instance's namespace, for its volume size) | the schedule's TTL and cron, its backups, and the volume sizes of the newest completed one, through the Kubernetes API with the pod's service account: give it `get`/`list` on `schedules`, `backups` and `podvolumebackups` (`velero.io`) in Velero's namespace |
+| `databasus` | `NUMEROS_DATABASUS_URL`, `_EMAIL`, `_PASSWORD`, `_DATABASE` (the database's name in Databasus) | the database's backup config and its logical backups, with a `WORKSPACE_VIEWER` account |
+
+A new tool is one type with `collect(ctx) (*Backup, error)` and an entry in `backupModules`
+(`backup.go`); the page only knows about the `Backup` it returns (retention in days or as a
+count, daily time, last run, count, sizes).
 
 The database user only needs `SELECT` on: `accounts`, `account_stats`, `users`, `statuses`,
 `notifications`, `favourites`, `follows`, `preview_cards`, `preview_cards_statuses`,

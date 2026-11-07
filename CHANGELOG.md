@@ -3,6 +3,16 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.2.0 — 2026-11-07
+
+Backup section, and nothing about bolha.us built in.
+
+- **Backup:** one card per backup tool, with retention, daily time (in the page's timezone), the last run and how it went, how many backups are kept and their sizes. Modules, picked and ordered with `NUMEROS_BACKUP_SOURCES`:
+  - `velero`: a schedule's TTL and cron, its backups and the volume sizes of the newest completed one, through the Kubernetes API (read-only role in Velero's namespace).
+  - `databasus`: a database's backup config and logical backups, with a viewer account.
+  A failing module keeps its previous card and is listed as stale.
+- **Any instance:** name, how the page refers to the instance, headline, media storage name, footer link and backup note come from the config (`NUMEROS_NAME`, `NUMEROS_US`, `NUMEROS_HEADLINE`, `NUMEROS_MEDIA_STORAGE`, `NUMEROS_PARENT_*`, `NUMEROS_BACKUP_NOTE`). The README says how external PostgreSQL, Redis and search are covered.
+
 ## 0.1.3 — 2026-11-07
 
 - The top numbers follow the server section's layout: one-line labels, the detail on the line below ("in the last 30 days · 12%", "known across the fediverse"), every tile the same height, every number the same size. The start date shows month and year.
