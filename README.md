@@ -134,3 +134,7 @@ CI runs gofmt, vet, the tests against PostgreSQL 17, govulncheck and the shared 
 
 Versions are `X.Y.Z-BUILD` (VERSION + pipeline); every version needs its CHANGELOG entry,
 which is also the `/release-notes` page.
+
+## Bot account
+
+The app's account on bolha.us, @numeros, is marked as a bot and uses [`docs/bot-avatar.png`](docs/bot-avatar.png) as its avatar, in the style of the other bolha.us bots.
