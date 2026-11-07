@@ -3,6 +3,16 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.1.2 — 2026-11-07
+
+Layout fixes after a first look on bolha.us.
+
+- The top numbers line up: labels that wrap keep two lines, and the date fits on one.
+- New users and reports get a heading each, with short labels (week, month, 6 months, year).
+- Links in three columns, with room for long titles (up to three lines) and long addresses.
+- Custom emoji shortcodes (":neovim:") are left out of display names.
+- Photos from accounts a moderator marked as always sensitive stay out, like sensitive posts already did.
+
 ## 0.1.1 — 2026-11-07
 
 Fixes from the first round on bolha.us.

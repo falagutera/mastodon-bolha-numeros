@@ -26,8 +26,8 @@
 {{if not .Ready}}
   <p class="soon">{{.T.collecting}}</p>
 {{else}}
-  <section class="tiles">
-    {{range $i, $t := .Tiles}}<div class="tile{{if eq $i 0}} hl{{end}}"><div class="lab">{{$t.Label}}</div><div class="val">{{$t.Value}}</div>{{if $t.Sub}}<div class="sub">{{$t.Sub}}</div>{{end}}</div>
+  <section class="tiles top">
+    {{range $i, $t := .Tiles}}<div class="tile{{if eq $i 0}} hl{{end}}"><div class="lab">{{$t.Label}}</div><div class="val{{if eq $i 4}} date{{end}}">{{$t.Value}}</div>{{if $t.Sub}}<div class="sub">{{$t.Sub}}</div>{{end}}</div>
     {{end}}
   </section>
 
@@ -64,12 +64,14 @@
   </div>{{end}}
 
   <div class="cat"><h2>{{.T.sec_server}}</h2><span class="rule"></span></div>
+  <h3 class="h4 first">{{.T.new_users}}</h3>
   <div class="tiles tight">
-    {{range .NewUsers}}<div class="tile"><div class="lab">{{$.T.new_users}} · {{.Label}}</div><div class="val">{{.Value}}</div></div>
+    {{range .NewUsers}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div></div>
     {{end}}
   </div>
-  <div class="tiles">
-    {{range .Reports}}<div class="tile"><div class="lab">{{$.T.reports}} · {{.Label}}</div><div class="val">{{.Value}}</div></div>
+  <h3 class="h4">{{.T.reports}}</h3>
+  <div class="tiles tight">
+    {{range .Reports}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div></div>
     {{end}}
   </div>
   <p class="note">{{.ReportsAll}}</p>

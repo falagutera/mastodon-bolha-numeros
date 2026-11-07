@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -172,7 +173,7 @@ func (s *store) ranking(ctx context.Context, tx pgx.Tx, key string, since time.T
 		if err := rows.Scan(&id, &user, &dom, &name, &ava, &url, &p.Value, &p.Total); err != nil {
 			return nil, err
 		}
-		p.Acct, p.Name = user, strings.TrimSpace(name)
+		p.Acct, p.Name = user, cleanName(name)
 		if p.Name == "" {
 			p.Name = user
 		}
@@ -233,7 +234,8 @@ func (s *store) content(ctx context.Context, tx pgx.Tx, now time.Time, c config)
 	rows, err = tx.Query(ctx, `WITH r AS (`+recent+`)
 		SELECT m.id, m.file_file_name, COALESCE(m.description, ''), r.username, r.id FROM r
 		JOIN media_attachments m ON m.status_id = r.id
-		WHERE m.type = 0 AND m.file_file_name IS NOT NULL ORDER BY m.id DESC LIMIT 60`, week)
+		JOIN accounts a ON a.id = m.account_id
+		WHERE m.type = 0 AND m.file_file_name IS NOT NULL AND a.sensitized_at IS NULL ORDER BY m.id DESC LIMIT 60`, week)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("photos: %w", err)
 	}
@@ -366,6 +368,14 @@ func (s *store) database(ctx context.Context, tx pgx.Tx) (version string, size i
 		version = f[0]
 	}
 	return version, size, err
+}
+
+var shortcodeRe = regexp.MustCompile(`:[A-Za-z0-9_]+:`)
+
+// cleanName drops custom emoji shortcodes (":neovim:"), which would show as
+// text: the page doesn't load the instance's emoji images.
+func cleanName(s string) string {
+	return strings.Join(strings.Fields(shortcodeRe.ReplaceAllString(s, " ")), " ")
 }
 
 var tagRe = strings.NewReplacer("<br>", " ", "<br/>", " ", "<br />", " ", "</p><p>", " ")

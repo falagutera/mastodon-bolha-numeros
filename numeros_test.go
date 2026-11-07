@@ -53,6 +53,9 @@ func TestHelpers(t *testing.T) {
 	if got := clip("um dois três quatro cinco", 12); got != "um dois…" {
 		t.Errorf("clip: %q", got)
 	}
+	if got := cleanName("Dev Albino :neovim: :linux:"); got != "Dev Albino" {
+		t.Errorf("cleanName: %q", got)
+	}
 	if got := stripTags(`<p>Café &amp; pão<br>ok</p>`); got != "Café & pão ok" {
 		t.Errorf("stripTags: %q", got)
 	}
@@ -124,6 +127,17 @@ func TestPage(t *testing.T) {
 	}
 
 	col.last = testSnapshot(time.Now())
+	if p := os.Getenv("NUMEROS_DUMP_JSON"); p != "" { // render a real snapshot instead (with NUMEROS_DUMP)
+		raw, _ := os.ReadFile(p)
+		var real Snapshot
+		if json.Unmarshal(raw, &real) == nil {
+			_, b := func() (*http.Response, string) { col.last = &real; return get("/") }()
+			os.WriteFile(os.Getenv("NUMEROS_DUMP")+"/index.html", []byte(strings.Replace(b, `href="/numeros.css"`, `href="numeros.css"`, 1)), 0o600)
+			os.WriteFile(os.Getenv("NUMEROS_DUMP")+"/numeros.css", srv.css, 0o600)
+			col.last = testSnapshot(time.Now())
+			return
+		}
+	}
 	res, body := get("/")
 	csp := res.Header.Get("Content-Security-Policy")
 	if !strings.Contains(csp, "img-src 'self' https://cache.example https://inst.example") || strings.Contains(csp, "unsafe") {
@@ -165,7 +179,7 @@ const testSchema = `
 DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;
 CREATE TABLE accounts (id bigint PRIMARY KEY, username text NOT NULL, domain text, display_name text DEFAULT '',
   avatar_file_name text, url text, uri text DEFAULT '', discoverable boolean, suspended_at timestamp, silenced_at timestamp,
-  moved_to_account_id bigint, memorial boolean DEFAULT false, actor_type text, note text DEFAULT '', hide_collections boolean);
+  moved_to_account_id bigint, memorial boolean DEFAULT false, actor_type text, note text DEFAULT '', hide_collections boolean, sensitized_at timestamp);
 CREATE TABLE users (id bigserial PRIMARY KEY, account_id bigint, approved boolean DEFAULT true, confirmed_at timestamp DEFAULT now(),
   disabled boolean DEFAULT false, created_at timestamp DEFAULT now(), current_sign_in_at timestamp);
 CREATE TABLE account_stats (account_id bigint PRIMARY KEY, statuses_count bigint DEFAULT 0, followers_count bigint DEFAULT 0, following_count bigint DEFAULT 0);
@@ -177,7 +191,7 @@ CREATE TABLE favourites (id bigserial PRIMARY KEY, account_id bigint, status_id 
 CREATE TABLE follows (id bigserial PRIMARY KEY, account_id bigint, target_account_id bigint, created_at timestamp DEFAULT now());
 CREATE TABLE preview_cards (id bigserial PRIMARY KEY, url text, title text);
 CREATE TABLE preview_cards_statuses (preview_card_id bigint, status_id bigint);
-CREATE TABLE media_attachments (id bigint PRIMARY KEY, status_id bigint, type int, file_file_name text, description text);
+CREATE TABLE media_attachments (id bigint PRIMARY KEY, status_id bigint, account_id bigint, type int, file_file_name text, description text);
 CREATE TABLE polls (id bigint PRIMARY KEY, votes_count bigint);
 CREATE TABLE reports (id bigserial PRIMARY KEY, created_at timestamp DEFAULT now());
 CREATE TABLE oauth_applications (id bigint PRIMARY KEY, name text);
@@ -269,8 +283,11 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 	}
 	exec(`INSERT INTO preview_cards_statuses VALUES (2, $1)`, post(2, ""))
 	photo := post(1, "")
-	exec(`INSERT INTO media_attachments VALUES (500, $1, 0, 'foto.png', 'um gato')`, photo)
-	exec(`INSERT INTO media_attachments VALUES (501, $1, 0, 'nsfw.png', '')`, post(1, "sensitive = true"))
+	exec(`INSERT INTO media_attachments VALUES (500, $1, 1, 0, 'foto.png', 'um gato')`, photo)
+	exec(`INSERT INTO media_attachments VALUES (501, $1, 1, 0, 'nsfw.png', '')`, post(1, "sensitive = true"))
+	// duda's media is always sensitive by a moderator's decision: her photos stay out too.
+	exec(`UPDATE accounts SET sensitized_at = now() WHERE id = 4`)
+	exec(`INSERT INTO media_attachments VALUES (502, $1, 4, 0, 'duda.png', '')`, post(4, ""))
 	exec(`INSERT INTO polls VALUES (7, 12)`)
 	post(1, "poll_id = 7, text = 'Café ou chá?'")
 	exec(`INSERT INTO polls VALUES (8, 3)`)
@@ -309,7 +326,7 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 		return "missing"
 	}
 	for key, want := range map[string]string{
-		"toots":     "ana=13 duda=2", // bia, caio, robo and eva never show up
+		"toots":     "ana=13 duda=3", // bia, caio, robo and eva never show up
 		"boosts":    "ana=1",
 		"favs":      "ana=2",
 		"followers": "ana=1", // duda hides her graph
@@ -320,7 +337,7 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 			t.Errorf("%s: %q, want %q", key, got, want)
 		}
 	}
-	if got := names("toots", "d"); got != "ana=13 duda=2" && now.In(cfg.loc).Hour() >= 1 {
+	if got := names("toots", "d"); got != "ana=13 duda=3" && now.In(cfg.loc).Hour() >= 1 {
 		t.Errorf("toots today: %q", got)
 	}
 	if len(s.Links) != 1 || s.Links[0].Domain != "news.example" || s.Links[0].Acct != "ana" {
