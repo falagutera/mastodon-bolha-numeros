@@ -352,6 +352,9 @@ func (s *server) backupCard(b Backup, t map[string]string, lang string, now time
 		count = fmt.Sprintf(t["bk_count_enc"], n(b.Count))
 	}
 	c.Rows = append(c.Rows, bkRow{Key: t["bk_kept"], Value: count})
+	if b.Items > 0 {
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_items"], Value: fmt.Sprintf(t["bk_items_v"], n(b.Items))})
+	}
 	if b.AppBytes > 0 {
 		c.Rows = append(c.Rows, bkRow{Key: t["bk_app_vol"], Value: fmt.Sprintf(t["bk_per"], formatBytes(b.AppBytes, lang))})
 	}

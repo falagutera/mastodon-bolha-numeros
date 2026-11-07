@@ -42,6 +42,7 @@ Ranking people in public is the delicate part, so:
 | `NUMEROS_TIMEZONE` | `America/Sao_Paulo` | "today" and the times shown |
 | `NUMEROS_EVERY` / `NUMEROS_OFFSET` | `1h` / `7m` | collect every hour at :07 |
 | `NUMEROS_SNAPSHOT` | | file to keep the last snapshot across restarts |
+| `NUMEROS_PLATFORM` | | `kubernetes`, `rancher`: platform versions (see below) |
 
 ### Your instance
 
@@ -63,6 +64,13 @@ instance's own admin dashboard (`NUMEROS_ADMIN_TOKEN`), which reports whatever M
 connected to: managed or external PostgreSQL, Redis and Elasticsearch/OpenSearch work as they
 are. The only direct reads are the database itself (read-only user) and, if set,
 `NUMEROS_SEARCH_URL` for the index size.
+
+### Platform
+
+`NUMEROS_PLATFORM` adds the platform to the versions table: `kubernetes` reads the cluster's
+version (any service account may; the distribution shows when the version says it: RKE2, K3s, EKS,
+GKE), and `rancher` reads Rancher's `server-version` setting, which needs `get` on that one
+`settings.management.cattle.io` object (a ClusterRole with `resourceNames: [server-version]`).
 
 ### Backup modules
 

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +23,7 @@ type collector struct {
 	admin   *adminAPI // nil: no admin token, those blocks are left out
 	client  *http.Client
 	backups []backupSource // the backup cards, in order
+	kube    *kubeAPI       // NUMEROS_PLATFORM: Kubernetes/Rancher versions
 	now     func() time.Time
 
 	mu   sync.RWMutex
@@ -180,6 +183,25 @@ func (c *collector) round(ctx context.Context) {
 		cancel()
 	}
 
+	if c.kube != nil {
+		pctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		rancher := slices.Contains(c.cfg.platform, "rancher")
+		items, err := platformVersions(pctx, c.kube, rancher)
+		cancel()
+		if err != nil {
+			stale("platform", err)
+		}
+		if len(items) == 0 && prev != nil { // keep the last known ones
+			for _, it := range prev.Software {
+				if strings.HasPrefix(it.Key, "kubernetes") || it.Key == "rancher" {
+					items = append(items, it)
+				}
+			}
+		}
+		for _, it := range items {
+			s.Software = setItem(s.Software, it)
+		}
+	}
 	if len(c.backups) > 0 {
 		var cards []Backup
 		bctx, cancel := context.WithTimeout(ctx, time.Minute)

@@ -36,6 +36,7 @@ type Backup struct {
 	Count         int64         `json:"count"`
 	Encrypted     bool          `json:"encrypted"`
 
+	Items      int64 `json:"items,omitempty"`       // velero: Kubernetes objects in the last backup
 	AppBytes   int64 `json:"app_bytes,omitempty"`   // velero: the instance's volumes in the last backup
 	TotalBytes int64 `json:"total_bytes,omitempty"` // velero: every volume in the last backup
 	LastBytes  int64 `json:"last_bytes,omitempty"`  // databasus: the last dump
@@ -144,9 +145,12 @@ type veleroBackup struct {
 		Created time.Time `json:"creationTimestamp"`
 	} `json:"metadata"`
 	Status struct {
-		Phase string     `json:"phase"`
-		Start *time.Time `json:"startTimestamp"`
-		End   *time.Time `json:"completionTimestamp"`
+		Phase    string     `json:"phase"`
+		Start    *time.Time `json:"startTimestamp"`
+		End      *time.Time `json:"completionTimestamp"`
+		Progress struct {
+			Items int64 `json:"itemsBackedUp"`
+		} `json:"progress"`
 	} `json:"status"`
 }
 
@@ -195,6 +199,7 @@ func velero(ctx context.Context, k *kubeAPI, ns, schedule, appNS string) (*Backu
 		if it.Status.Phase != "Completed" {
 			continue
 		}
+		b.Items = it.Status.Progress.Items
 		var pvbs struct {
 			Items []struct {
 				Spec struct {
@@ -492,4 +497,45 @@ func or(v, def string) string {
 		return def
 	}
 	return strings.TrimSpace(v)
+}
+
+// --- platform: Kubernetes (and Rancher) versions --------------------------------
+
+// platformVersions reads the cluster's version (any service account may) and,
+// with rancher, Rancher's server-version setting (needs get on that one setting).
+func platformVersions(ctx context.Context, k *kubeAPI, rancher bool) ([]Item, error) {
+	var v struct {
+		GitVersion string `json:"gitVersion"`
+	}
+	if err := k.get(ctx, "/version", &v); err != nil {
+		return nil, err
+	}
+	key, ver := kubeDistro(v.GitVersion)
+	out := []Item{{Key: key, Value: ver}}
+	if rancher {
+		var s struct {
+			Value string `json:"value"`
+		}
+		if err := k.get(ctx, "/apis/management.cattle.io/v3/settings/server-version", &s); err != nil {
+			return out, err
+		}
+		out = append(out, Item{Key: "rancher", Value: strings.TrimPrefix(s.Value, "v")})
+	}
+	return out, nil
+}
+
+// kubeDistro: "v1.36.5+rke2r1" -> ("kubernetes-rke2", "1.36.5").
+func kubeDistro(git string) (string, string) {
+	ver, build, _ := strings.Cut(strings.TrimPrefix(git, "v"), "+")
+	switch {
+	case strings.HasPrefix(build, "rke2"):
+		return "kubernetes-rke2", ver
+	case strings.HasPrefix(build, "k3s"):
+		return "kubernetes-k3s", ver
+	case strings.Contains(build, "eks"), strings.Contains(ver, "-eks"):
+		return "kubernetes-eks", strings.SplitN(ver, "-", 2)[0]
+	case strings.Contains(ver, "-gke"):
+		return "kubernetes-gke", strings.SplitN(ver, "-", 2)[0]
+	}
+	return "kubernetes", ver
 }

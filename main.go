@@ -48,6 +48,8 @@ type config struct {
 	backupNotePT          string // note under the backup cards
 	backupNoteEN          string
 	parentName, parentURL string // "part of ..." in the footer
+
+	platform []string // NUMEROS_PLATFORM: "kubernetes", optionally "rancher"
 }
 
 func env(k, def string) string {
@@ -84,6 +86,12 @@ func loadConfig() (config, error) {
 	if c.parentURL != "" {
 		if p, err := url.Parse(c.parentURL); err != nil || p.Scheme != "https" || p.Host == "" {
 			return c, fmt.Errorf("config: NUMEROS_PARENT_URL %q must be an https URL", c.parentURL)
+		}
+	}
+	c.platform = strings.Fields(strings.ReplaceAll(env("NUMEROS_PLATFORM", ""), ",", " "))
+	for _, p := range c.platform {
+		if p != "kubernetes" && p != "rancher" {
+			return c, fmt.Errorf("config: NUMEROS_PLATFORM: unknown %q (kubernetes, rancher)", p)
 		}
 	}
 	c.media = strings.TrimRight(env("NUMEROS_MEDIA_URL", c.instance+"/system"), "/")
@@ -153,6 +161,11 @@ func main() {
 	}
 	if col.backups, err = backupSources(cfg, func(k string) string { return strings.TrimSpace(os.Getenv(k)) }); err != nil {
 		log.Fatal(err)
+	}
+	if len(cfg.platform) > 0 {
+		if col.kube, err = inCluster(); err != nil {
+			log.Fatalf("NUMEROS_PLATFORM: %v", err)
+		}
 	}
 	col.load()
 	srv, err := newServer(cfg, col)

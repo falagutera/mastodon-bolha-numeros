@@ -3,6 +3,11 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.3.0 — 2026-11-07
+
+- **Platform versions:** `NUMEROS_PLATFORM=kubernetes rancher` adds Kubernetes (with the distribution: RKE2, K3s, EKS, GKE) and Rancher to the versions table, read from the cluster.
+- **Velero card:** how many Kubernetes objects the last backup kept (the whole cluster's), and "volume data" for the instance's size, which is only what its volumes hold.
+
 ## 0.2.3 — 2026-11-07
 
 - Velero: a 429 from the Kubernetes API (priority and fairness) is retried, waiting what Retry-After says, instead of losing the card for the round.

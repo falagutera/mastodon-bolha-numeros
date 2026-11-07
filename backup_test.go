@@ -46,7 +46,7 @@ func TestVelero(t *testing.T) {
 		b := func(name string, ago time.Duration, phase string) map[string]any {
 			st, end := now.Add(-ago), now.Add(-ago+13*time.Minute)
 			return map[string]any{"metadata": map[string]any{"name": name, "creationTimestamp": st},
-				"status": map[string]any{"phase": phase, "startTimestamp": st, "completionTimestamp": end}}
+				"status": map[string]any{"phase": phase, "startTimestamp": st, "completionTimestamp": end, "progress": map[string]any{"itemsBackedUp": 5199}}}
 		}
 		json.NewEncoder(w).Encode(map[string]any{"items": []any{b("old", 48*time.Hour, "Completed"), b("new", time.Hour, "Completed"), b("mid", 24*time.Hour, "Completed")}})
 	})
@@ -70,7 +70,7 @@ func TestVelero(t *testing.T) {
 		t.Fatal(err)
 	}
 	if b.RetentionDays != 30 || b.DailyUTC != "04:00" || b.Count != 3 || !b.LastOK || b.LastTook != 13*time.Minute ||
-		!b.LastAt.Equal(now.Add(-time.Hour)) || b.AppBytes != 1500 || b.TotalBytes != 101500 {
+		!b.LastAt.Equal(now.Add(-time.Hour)) || b.Items != 5199 || b.AppBytes != 1500 || b.TotalBytes != 101500 {
 		t.Errorf("velero: %+v", b)
 	}
 }
@@ -158,7 +158,7 @@ func TestBackupCards(t *testing.T) {
 	snap := testSnapshot(now)
 	snap.Backups = []Backup{
 		{Source: "velero", Title: "Aplicação", Sub: "kubernetes · velero", RetentionDays: 30, DailyUTC: "04:00", LastAt: time.Date(2026, 11, 7, 4, 0, 8, 0, time.UTC), LastOK: true,
-			LastTook: 13 * time.Minute, Count: 31, AppBytes: 20 << 20, TotalBytes: 58 << 30},
+			LastTook: 13 * time.Minute, Count: 31, Items: 5199, AppBytes: 20 << 20, TotalBytes: 58 << 30},
 		{Source: "databasus", Title: "Banco de dados", Sub: "postgresql · databasus", RetentionDays: 7, DailyUTC: "03:00", LastAt: time.Date(2026, 11, 6, 3, 0, 11, 0, time.UTC), LastOK: false,
 			Count: 7, Encrypted: true, LastBytes: 15 << 30, DBBytes: 95 << 30, Stored: 108 << 30},
 	}
@@ -170,10 +170,32 @@ func TestBackupCards(t *testing.T) {
 	}
 	page := b.String()
 	for _, want := range []string{"Backup", "kubernetes · velero", ">30<", "dias de retenção", "diária, 01:00", "hoje às 01:00 · 13 min",
-		"31 backups", "20,0 MB por backup", "58,0 GB por backup", "postgresql · databasus", "diária, 00:00",
+		"31 backups", "Objetos do k8s", "5.199 (cluster inteiro)", "Dados dos volumes (inst.example)", "20,0 MB por backup", "58,0 GB por backup", "postgresql · databasus", "diária, 00:00",
 		`class="st bad"`, "ontem às 00:00 · falhou", "7 backups, criptografados", "15,0 GB (banco de 95,0 GB)", "108 GB", "Outro", "sem dados nesta rodada", `class="two bkgrid"`, "numeros.css?v="} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page lacks %q", want)
 		}
+	}
+}
+
+func TestPlatformVersions(t *testing.T) {
+	for in, want := range map[string]string{"v1.36.5+rke2r1": "kubernetes-rke2 1.36.5", "v1.31.2+k3s1": "kubernetes-k3s 1.31.2",
+		"v1.30.4-eks-a737599": "kubernetes-eks 1.30.4", "v1.30.5-gke.1014001": "kubernetes-gke 1.30.5", "v1.32.0": "kubernetes 1.32.0"} {
+		if k, v := kubeDistro(in); k+" "+v != want {
+			t.Errorf("kubeDistro(%q) = %s %s", in, k, v)
+		}
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"gitVersion":"v1.36.5+rke2r1"}`) })
+	mux.HandleFunc("GET /apis/management.cattle.io/v3/settings/server-version", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"value":"v2.15.2"}`)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	tok := filepath.Join(t.TempDir(), "token")
+	os.WriteFile(tok, []byte("t"), 0o600)
+	items, err := platformVersions(context.Background(), &kubeAPI{base: ts.URL, tokenFile: tok, client: http.DefaultClient}, true)
+	if err != nil || len(items) != 2 || items[0] != (Item{Key: "kubernetes-rke2", Value: "1.36.5"}) || items[1] != (Item{Key: "rancher", Value: "2.15.2"}) {
+		t.Errorf("platform: %+v %v", items, err)
 	}
 }

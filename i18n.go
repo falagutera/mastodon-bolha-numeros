@@ -81,9 +81,11 @@ var strs = map[string]map[string]string{
 		"bk_kept":       "Guardados",
 		"bk_count":      "%s backups",
 		"bk_count_enc":  "%s backups, criptografados",
-		"bk_app_vol":    "Volumes de {name}",
+		"bk_app_vol":    "Dados dos volumes ({name})",
 		"bk_per":        "%s por backup",
 		"bk_cluster":    "Cluster inteiro",
+		"bk_items":      "Objetos do k8s",
+		"bk_items_v":    "%s (cluster inteiro)",
 		"bk_last_dump":  "Último backup",
 		"bk_dump_of":    "%s (banco de %s)",
 		"bk_stored":     "Total guardado",
@@ -178,9 +180,11 @@ var strs = map[string]map[string]string{
 		"bk_kept":       "Kept",
 		"bk_count":      "%s backups",
 		"bk_count_enc":  "%s backups, encrypted",
-		"bk_app_vol":    "{name} volumes",
+		"bk_app_vol":    "Volume data ({name})",
 		"bk_per":        "%s per backup",
 		"bk_cluster":    "Whole cluster",
+		"bk_items":      "Kubernetes objects",
+		"bk_items_v":    "%s (whole cluster)",
 		"bk_last_dump":  "Last backup",
 		"bk_dump_of":    "%s (database of %s)",
 		"bk_stored":     "Total stored",
@@ -200,7 +204,9 @@ var strs = map[string]map[string]string{
 // Names for the software keys the dashboard reports.
 var softwareNames = map[string]string{
 	"mastodon": "Mastodon", "ruby": "Ruby", "postgresql": "PostgreSQL", "redis": "Redis",
-	"elasticsearch": "OpenSearch (ES API)", "libvips": "libvips", "imagemagick": "ImageMagick", "ffmpeg": "FFmpeg",
+	"elasticsearch": "OpenSearch (ES API)",
+	"kubernetes":    "Kubernetes", "kubernetes-rke2": "Kubernetes (RKE2)", "kubernetes-k3s": "Kubernetes (K3s)",
+	"kubernetes-eks": "Kubernetes (EKS)", "kubernetes-gke": "Kubernetes (GKE)", "rancher": "Rancher", "libvips": "libvips", "imagemagick": "ImageMagick", "ffmpeg": "FFmpeg",
 }
 
 // Language names for the codes seen most; anything else shows the code.
