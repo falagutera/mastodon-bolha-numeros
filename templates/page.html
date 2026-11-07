@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="{{if eq .Lang "en"}}en{{else}}pt-BR{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.T.title}}</title>
+<meta name="description" content="{{.T.lede}}">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/numeros.css">
+<link rel="alternate" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}" href="{{.OtherHref}}">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="{{if eq .Lang "en"}}/en/{{else}}/{{end}}"><span class="bubble"></span>numeros<span class="dom">.bolha.us</span></a>
+    <a class="toggle" href="{{.OtherHref}}" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}">{{.Other}}</a>
+  </div>
+
+  <header class="hero">
+    <p class="kicker">{{.T.kicker}}</p>
+    <h1>{{raw .T.h1}}</h1>
+    <p class="lede">{{.T.lede}}</p>
+    {{if .Ready}}<div class="stamp"><i></i>{{.Updated}}</div>{{if .Stale}}<p class="warn">{{.Stale}}</p>{{end}}{{end}}
+  </header>
+
+{{if not .Ready}}
+  <p class="soon">{{.T.collecting}}</p>
+{{else}}
+  <section class="tiles">
+    {{range $i, $t := .Tiles}}<div class="tile{{if eq $i 0}} hl{{end}}"><div class="lab">{{$t.Label}}</div><div class="val">{{$t.Value}}</div>{{if $t.Sub}}<div class="sub">{{$t.Sub}}</div>{{end}}</div>
+    {{end}}
+  </section>
+
+  <div class="cat"><h2>{{.T.sec_users}}</h2><span class="rule"></span><span class="note">{{.T.top12}}</span></div>
+  <div class="periods" role="radiogroup" aria-label="{{.T.period}}">
+    {{range $i, $p := .Periods}}<input type="radio" name="p" id="p-{{$p.Key}}"{{if eq $i 0}} checked{{end}}><label for="p-{{$p.Key}}">{{$p.Value}}</label>
+    {{end}}
+  </div>
+  <div class="grid">
+    {{range .Ranks}}{{$unit := .Unit}}<div class="card"><h3>{{.Title}}<small>{{$unit}}</small></h3>
+      {{range .Periods}}<div class="p p-{{.Key}}">{{if .Rows}}<ol class="rank">
+        {{range .Rows}}<li><span class="n">{{.N}}</span><img class="av" src="{{.Avatar}}" alt="" width="30" height="30" loading="lazy" referrerpolicy="no-referrer"><span class="who"><a href="{{.URL}}" rel="nofollow noopener"><b>{{.Name}}</b><span>{{.Acct}}</span></a></span><span class="num">{{.Value}}{{if .Sub}}<small>{{.Sub}}</small>{{end}}</span><svg class="bar" viewBox="0 0 100 2" preserveAspectRatio="none" aria-hidden="true"><rect width="{{.Bar}}" height="2"/></svg></li>
+        {{end}}</ol>{{else}}<p class="emptyrow">{{$.T.empty}}</p>{{end}}</div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <div class="cat"><h2>{{.T.sec_content}}</h2><span class="rule"></span><span class="note">{{.T.public_only}}</span></div>
+  {{if .Links}}<h3 class="h3 first">{{.T.links}}</h3>
+  <div class="links">
+    {{range $i, $l := .Links}}<a class="link" href="{{$l.URL}}" rel="nofollow noopener ugc"><b>{{$l.Title}}</b><span>{{$l.Domain}}</span> <span class="by">· {{index $.LinkSubs $i}}</span></a>
+    {{end}}
+  </div>{{end}}
+  {{if .Photos}}<h3 class="h3">{{.T.photos}}</h3>
+  <div class="photos">
+    {{range $i, $p := .Photos}}<a class="ph" href="{{$p.URL}}" rel="nofollow noopener"><img src="{{$p.Src}}" alt="{{index $.PhotoAlts $i}}" loading="lazy" referrerpolicy="no-referrer"></a>
+    {{end}}
+  </div>{{end}}
+  {{if .Polls}}<h3 class="h3">{{.T.polls}}</h3>
+  <div class="polls">
+    {{range $i, $p := .Polls}}<div class="poll"><a href="{{$p.URL}}" rel="nofollow noopener">{{$p.Text}}</a><span>{{index $.PollSubs $i}}</span></div>
+    {{end}}
+  </div>{{end}}
+
+  <div class="cat"><h2>{{.T.sec_server}}</h2><span class="rule"></span></div>
+  <div class="tiles tight">
+    {{range .NewUsers}}<div class="tile"><div class="lab">{{$.T.new_users}} · {{.Label}}</div><div class="val">{{.Value}}</div></div>
+    {{end}}
+  </div>
+  <div class="tiles">
+    {{range .Reports}}<div class="tile"><div class="lab">{{$.T.reports}} · {{.Label}}</div><div class="val">{{.Value}}</div></div>
+    {{end}}
+  </div>
+  <p class="note">{{.ReportsAll}}</p>
+  <div class="two gap">
+    {{template "bars" (dict3 .T.clients .T.d30 .Clients)}}
+    {{template "bars" (dict3 .T.languages .T.d30 .Languages)}}
+    {{template "bars" (dict3 .T.talkers .T.d30 .Talkers)}}
+  </div>
+
+  <div class="cat"><h2>{{.T.sec_sw}}</h2><span class="rule"></span></div>
+  <div class="two">
+    {{if .Software}}<div class="card"><h3>{{.T.versions}} <small>{{.T.versions_by}}</small></h3>
+      <table class="sw">{{range .Software}}<tr><td>{{.Key}}</td><td>{{.Value}}</td></tr>{{end}}</table></div>{{end}}
+    {{if .Space}}<div class="card"><h3>{{.T.space}}</h3>
+      <table class="sw">{{range .Space}}<tr><td>{{.Key}}</td><td>{{.Value}}</td></tr>{{end}}</table></div>{{end}}
+  </div>
+  <div class="cat"><h2>{{.T.sec_soon}}</h2><span class="rule"></span></div>
+  <div class="soon">{{.T.soon}}</div>
+{{end}}
+
+  <footer>
+    <div><b>{{.T.how_h}}</b> {{raw .T.how}}</div>
+    <div>numeros {{.Version}} · <a href="https://gitlab.gutocarvalho.net/open/bolha/numeros">{{.T.code}}</a> · <a href="/release-notes">{{.T.news}}</a> · {{.T.part_of}} <a href="https://bolha.io">bolha.io</a></div>
+  </footer>
+</div>
+</body>
+</html>
+{{define "bars"}}<div class="card"><h3>{{.Title}} <small>{{.Sub}}</small></h3>{{if .Rows}}<ul class="bars">
+  {{range .Rows}}<li><span>{{.Name}}</span><span class="v">{{.Value}}</span><svg class="track" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="6" rx="3"/><rect class="fg" width="{{.Bar}}" height="6" rx="3"/></svg></li>
+  {{end}}</ul>{{else}}<p class="emptyrow">—</p>{{end}}</div>{{end}}
