@@ -31,7 +31,14 @@ func TestVelero(t *testing.T) {
 		}
 		fmt.Fprint(w, `{"spec":{"schedule":"0 4 * * *","template":{"ttl":"720h0m0s"}}}`)
 	})
+	busy := 1 // the first list gets a 429, as the API server's fairness may answer
 	mux.HandleFunc("GET /apis/velero.io/v1/namespaces/velero/backups", func(w http.ResponseWriter, r *http.Request) {
+		if busy > 0 {
+			busy--
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
 		if r.URL.Query().Get("labelSelector") != "velero.io/schedule-name=daily-all" {
 			w.WriteHeader(http.StatusBadRequest)
 			return

@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.2.3 — 2026-11-07
+
+- Velero: a 429 from the Kubernetes API (priority and fairness) is retried, waiting what Retry-After says, instead of losing the card for the round.
+
 ## 0.2.2 — 2026-11-07
 
 - Each backup module keeps its card even when its first round fails ("no data this round"), and the cards stay in two columns, so the section doesn't change shape.

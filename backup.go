@@ -89,27 +89,53 @@ func inCluster() (*kubeAPI, error) {
 		client: &http.Client{Timeout: 30 * time.Second, Transport: tr}}, nil
 }
 
+// get retries a 429 (the API server's priority and fairness asking to come back
+// later) a few times, waiting what Retry-After says, at most 10 s each.
 func (k *kubeAPI) get(ctx context.Context, path string, out any) error {
+	var err error
+	for try := 0; try < 4; try++ {
+		var wait time.Duration
+		if wait, err = k.getOnce(ctx, path, out); err == nil || wait == 0 {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
+	}
+	return err
+}
+
+func (k *kubeAPI) getOnce(ctx context.Context, path string, out any) (time.Duration, error) {
 	tok, err := os.ReadFile(k.tokenFile) // projected tokens rotate: read it every time
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, k.base+path, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(tok)))
 	req.Header.Set("Accept", "application/json")
 	resp, err := k.client.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
-		return fmt.Errorf("kubernetes %s: status %d", strings.SplitN(path, "?", 2)[0], resp.StatusCode)
+		err := fmt.Errorf("kubernetes %s: status %d", strings.SplitN(path, "?", 2)[0], resp.StatusCode)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			wait := 2 * time.Second
+			if n, e := strconv.Atoi(resp.Header.Get("Retry-After")); e == nil && n > 0 {
+				wait = time.Duration(min(n, 10)) * time.Second
+			}
+			return wait, err
+		}
+		return 0, err
 	}
-	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(out)
+	return 0, json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(out)
 }
 
 type veleroBackup struct {
