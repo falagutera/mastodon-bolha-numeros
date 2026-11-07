@@ -3,6 +3,14 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.1.1 — 2026-11-07
+
+Fixes from the first round on bolha.us.
+
+- Apps are counted by name: each install of a mobile app registers its own OAuth application, so counting by id left out every app but the web one.
+- Ruby shows only its version number, not the whole `ruby -v` line.
+- The search version is labelled as the Elasticsearch-compatible API version OpenSearch reports.
+
 ## 0.1.0 — 2026-11-07
 
 First version: bolha.us in numbers, on one page, in Portuguese and English.

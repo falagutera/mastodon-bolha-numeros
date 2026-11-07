@@ -253,6 +253,11 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 	}
 	exec(`INSERT INTO oauth_applications VALUES (100, 'Web'), (101, 'MeuScript')`)
 	post(1, "application_id = 101") // only ana uses MeuScript
+	// Each install of a mobile app is its own OAuth application: Ivory counts by name.
+	exec(`INSERT INTO oauth_applications VALUES (102, 'Ivory'), (103, 'Ivory'), (104, 'Ivory')`)
+	post(1, "application_id = 102")
+	post(4, "application_id = 103")
+	post(2, "application_id = 104")
 
 	// Content: a link, a photo and a poll by ana; the same kind of thing behind
 	// a content warning, sensitive, local-only or by bia must not show.
@@ -304,7 +309,7 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 		return "missing"
 	}
 	for key, want := range map[string]string{
-		"toots":     "ana=12 duda=1", // bia, caio, robo and eva never show up
+		"toots":     "ana=13 duda=2", // bia, caio, robo and eva never show up
 		"boosts":    "ana=1",
 		"favs":      "ana=2",
 		"followers": "ana=1", // duda hides her graph
@@ -315,7 +320,7 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 			t.Errorf("%s: %q, want %q", key, got, want)
 		}
 	}
-	if got := names("toots", "d"); got != "ana=12 duda=1" && now.In(cfg.loc).Hour() >= 1 {
+	if got := names("toots", "d"); got != "ana=13 duda=2" && now.In(cfg.loc).Hour() >= 1 {
 		t.Errorf("toots today: %q", got)
 	}
 	if len(s.Links) != 1 || s.Links[0].Domain != "news.example" || s.Links[0].Acct != "ana" {
@@ -333,7 +338,7 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 	if s.NewUsers != (Windows{6, 6, 6, 6}) || s.Reports != (Windows{1, 1, 2, 2}) || s.ReportsTotal != 2 {
 		t.Errorf("windows: %+v %+v %d", s.NewUsers, s.Reports, s.ReportsTotal)
 	}
-	if len(s.Clients) != 1 || s.Clients[0].Name != "Web" {
+	if len(s.Clients) != 2 || s.Clients[0].Name != "Web" || s.Clients[1] != (Bar{"Ivory", 3}) {
 		t.Errorf("clients (MeuScript has one person): %+v", s.Clients)
 	}
 	if len(s.Languages) != 1 || s.Languages[0].Name != "pt" {

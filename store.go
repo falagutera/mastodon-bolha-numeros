@@ -344,9 +344,11 @@ func (s *store) usage(ctx context.Context, tx pgx.Tx, now time.Time, snap *Snaps
 	}
 	// An app only shows up when at least 3 people used it: a personal app's
 	// name would say who posts with it.
-	if snap.Clients, err = bars(`SELECT o.name, x.n FROM (SELECT s.application_id, count(*) AS n, count(DISTINCT s.account_id) AS people `+local+`
-		AND s.application_id IS NOT NULL GROUP BY 1) x JOIN oauth_applications o ON o.id = x.application_id
-		WHERE x.people >= 3 ORDER BY x.n DESC LIMIT 12`, snowflake(since)); err != nil {
+	// Grouped by the app's name: each install of a mobile app registers its own
+	// OAuth application, so ids would count one person each.
+	if snap.Clients, err = bars(`SELECT o.name, count(*) AS n FROM (SELECT s.application_id, s.account_id `+local+`
+		AND s.application_id IS NOT NULL) x JOIN oauth_applications o ON o.id = x.application_id
+		GROUP BY o.name HAVING count(DISTINCT x.account_id) >= 3 ORDER BY n DESC LIMIT 12`, snowflake(since)); err != nil {
 		return fmt.Errorf("clients: %w", err)
 	}
 	if snap.Talkers, err = bars(`SELECT a.domain, count(*) FROM notifications n JOIN accounts a ON a.id = n.from_account_id

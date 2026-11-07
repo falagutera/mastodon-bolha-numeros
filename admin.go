@@ -70,6 +70,9 @@ func (a *adminAPI) dimensions(ctx context.Context, now time.Time) (software, spa
 			switch d.Key {
 			case "software_versions":
 				v := strings.Trim(string(x.Value), `"`)
+				if f := strings.Fields(v); x.Key == "ruby" && len(f) > 1 {
+					v = f[1] // "ruby 4.0.9 (2026-10-23 revision …) +YJIT …" -> "4.0.9"
+				}
 				if v != "" && v != "null" {
 					software = append(software, Item{Key: x.Key, Value: v})
 				}

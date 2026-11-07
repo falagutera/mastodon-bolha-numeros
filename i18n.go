@@ -160,7 +160,7 @@ var strs = map[string]map[string]string{
 // Names for the software keys the dashboard reports.
 var softwareNames = map[string]string{
 	"mastodon": "Mastodon", "ruby": "Ruby", "postgresql": "PostgreSQL", "redis": "Redis",
-	"elasticsearch": "OpenSearch", "libvips": "libvips", "imagemagick": "ImageMagick", "ffmpeg": "FFmpeg",
+	"elasticsearch": "OpenSearch (ES API)", "libvips": "libvips", "imagemagick": "ImageMagick", "ffmpeg": "FFmpeg",
 }
 
 // Language names for the codes seen most; anything else shows the code.
