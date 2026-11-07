@@ -59,7 +59,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /en", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/en/", http.StatusMovedPermanently) })
 	mux.HandleFunc("GET /numeros.css", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Header().Set("Cache-Control", "public, max-age=86400") // the page asks for ?v=<version>
 		w.Write(s.css)
 	})
 	mux.HandleFunc("GET /numeros.json", s.json)
@@ -328,6 +328,10 @@ func (s *server) backupCard(b Backup, t map[string]string, lang string, now time
 		c.Big = strconv.Itoa(b.RetentionDays)
 	case b.RetentionKeep > 0:
 		c.Big, c.BigUnit = strconv.Itoa(b.RetentionKeep), t["bk_keep"]
+	}
+	if b.Missing {
+		c.Rows = append(c.Rows, bkRow{Key: t["bk_last"], Value: t["bk_missing"], Dot: "bad"})
+		return c
 	}
 	if at := s.dailyLocal(b.DailyUTC, now); at != "" {
 		c.Rows = append(c.Rows, bkRow{Key: t["bk_freq"], Value: fmt.Sprintf(t["bk_daily"], at)})

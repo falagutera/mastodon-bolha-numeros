@@ -187,7 +187,11 @@ func (c *collector) round(ctx context.Context) {
 			b, err := src.mod.collect(bctx)
 			if err != nil {
 				stale(src.id, err)
-				cards = append(cards, prevBackup(prev, src.id)...)
+				if p := prevBackup(prev, src.id); len(p) > 0 {
+					cards = append(cards, p...)
+				} else { // keep the card in its place, so the section doesn't change shape
+					cards = append(cards, Backup{Source: src.id, Title: src.title, TitleEN: src.titleEN, Sub: src.sub, Missing: true})
+				}
 				continue
 			}
 			b.Source, b.Title, b.TitleEN, b.Sub = src.id, src.title, src.titleEN, src.sub

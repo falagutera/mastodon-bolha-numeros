@@ -133,7 +133,7 @@ func TestPage(t *testing.T) {
 		var real Snapshot
 		if json.Unmarshal(raw, &real) == nil {
 			_, b := func() (*http.Response, string) { col.last = &real; return get("/") }()
-			os.WriteFile(os.Getenv("NUMEROS_DUMP")+"/index.html", []byte(strings.Replace(b, `href="/numeros.css"`, `href="numeros.css"`, 1)), 0o600)
+			os.WriteFile(os.Getenv("NUMEROS_DUMP")+"/index.html", []byte(strings.Replace(b, `href="/numeros.css?v=`, `href="numeros.css?v=`, 1)), 0o600)
 			os.WriteFile(os.Getenv("NUMEROS_DUMP")+"/numeros.css", srv.css, 0o600)
 			col.last = testSnapshot(time.Now())
 			return
@@ -153,7 +153,7 @@ func TestPage(t *testing.T) {
 		}
 	}
 	if p := os.Getenv("NUMEROS_DUMP"); p != "" { // a look at the page: NUMEROS_DUMP=dir go test -run TestPage
-		os.WriteFile(p+"/index.html", []byte(strings.Replace(body, `href="/numeros.css"`, `href="numeros.css"`, 1)), 0o600)
+		os.WriteFile(p+"/index.html", []byte(strings.Replace(body, `href="/numeros.css?v=`, `href="numeros.css?v=`, 1)), 0o600)
 		os.WriteFile(p+"/numeros.css", srv.css, 0o600)
 	}
 	if strings.Contains(body, "style=") || strings.Contains(body, "<script") {

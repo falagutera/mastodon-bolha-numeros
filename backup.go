@@ -26,9 +26,10 @@ type Backup struct {
 	Title         string        `json:"title"`
 	TitleEN       string        `json:"title_en"`
 	Sub           string        `json:"sub"`
-	RetentionDays int           `json:"retention_days"` // 0: not a time period (see RetentionKeep)
-	RetentionKeep int           `json:"retention_keep"` // keeps the newest N backups
-	DailyUTC      string        `json:"daily_utc"`      // "04:00" when it runs once a day
+	Missing       bool          `json:"missing,omitempty"` // the module failed and there was no earlier card
+	RetentionDays int           `json:"retention_days"`    // 0: not a time period (see RetentionKeep)
+	RetentionKeep int           `json:"retention_keep"`    // keeps the newest N backups
+	DailyUTC      string        `json:"daily_utc"`         // "04:00" when it runs once a day
 	LastAt        time.Time     `json:"last_at"`
 	LastOK        bool          `json:"last_ok"`
 	LastTook      time.Duration `json:"last_took_ns"`

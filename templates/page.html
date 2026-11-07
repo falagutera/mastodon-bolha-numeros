@@ -6,7 +6,7 @@
 <title>{{.T.title}}</title>
 <meta name="description" content="{{.T.lede}}">
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="/numeros.css">
+<link rel="stylesheet" href="/numeros.css?v={{.Version}}">
 <link rel="alternate" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}" href="{{.OtherHref}}">
 </head>
 <body>
@@ -89,7 +89,7 @@
       <table class="sw">{{range .Space}}<tr><td>{{.Key}}</td><td>{{.Value}}</td></tr>{{end}}</table></div>{{end}}
   </div>
   {{if .Backups}}<div class="cat"><h2>{{.T.sec_backup}}</h2><span class="rule"></span><span class="note">{{.T.bk_measured}}</span></div>
-  <div class="two">
+  <div class="two bkgrid">
     {{range .Backups}}<div class="card bk"><h3>{{.Title}}<small>{{.Sub}}</small></h3>
       <div class="ret"><b>{{.Big}}</b><span>{{.BigUnit}}</span></div>
       <table class="sw">{{range .Rows}}<tr><td class="k">{{.Key}}</td><td>{{if .Dot}}<span class="st {{.Dot}}"><i></i>{{.Value}}</span>{{else}}{{.Value}}{{end}}</td></tr>{{end}}</table></div>

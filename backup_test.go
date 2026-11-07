@@ -155,6 +155,7 @@ func TestBackupCards(t *testing.T) {
 		{Source: "databasus", Title: "Banco de dados", Sub: "postgresql · databasus", RetentionDays: 7, DailyUTC: "03:00", LastAt: time.Date(2026, 11, 6, 3, 0, 11, 0, time.UTC), LastOK: false,
 			Count: 7, Encrypted: true, LastBytes: 15 << 30, DBBytes: 95 << 30, Stored: 108 << 30},
 	}
+	snap.Backups = append(snap.Backups, Backup{Source: "x", Title: "Outro", Sub: "y", Missing: true})
 	v := srv.view("pt", snap, now)
 	var b strings.Builder
 	if err := srv.tmpl.ExecuteTemplate(&b, "page.html", v); err != nil {
@@ -163,7 +164,7 @@ func TestBackupCards(t *testing.T) {
 	page := b.String()
 	for _, want := range []string{"Backup", "kubernetes · velero", ">30<", "dias de retenção", "diária, 01:00", "hoje às 01:00 · 13 min",
 		"31 backups", "20,0 MB por backup", "58,0 GB por backup", "postgresql · databasus", "diária, 00:00",
-		`class="st bad"`, "ontem às 00:00 · falhou", "7 backups, criptografados", "15,0 GB (banco de 95,0 GB)", "108 GB"} {
+		`class="st bad"`, "ontem às 00:00 · falhou", "7 backups, criptografados", "15,0 GB (banco de 95,0 GB)", "108 GB", "Outro", "sem dados nesta rodada", `class="two bkgrid"`, "numeros.css?v="} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page lacks %q", want)
 		}

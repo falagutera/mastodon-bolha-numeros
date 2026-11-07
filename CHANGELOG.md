@@ -3,6 +3,11 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.2.2 — 2026-11-07
+
+- Each backup module keeps its card even when its first round fails ("no data this round"), and the cards stay in two columns, so the section doesn't change shape.
+- The stylesheet URL carries the version, so a new version's styles show at once instead of after the browser's cache expires.
+
 ## 0.2.1 — 2026-11-07
 
 - Databasus: a canceled backup no longer counts as the last one (it said "failed" until the next run); "last" is the newest backup that completed or failed.
