@@ -26,8 +26,9 @@ schema** of whatever they reach, so chain with `&&` and never point them at a sh
 
 ```sh
 P=55491   # any free port: check `docker ps` first
+docker rm -f numeros-pg-$P 2>/dev/null   # a leftover from an earlier run
 docker run -d --name numeros-pg-$P -p $P:5432 -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=numeros_test postgres:17 &&
-  until docker exec numeros-pg-$P pg_isready -U postgres -q; do sleep 1; done &&
+  until docker exec numeros-pg-$P pg_isready -h 127.0.0.1 -U postgres -q; do sleep 1; done &&
   NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PORT=$P go test ./...
 
 # then every query again as the app's role, with only the grants of docs/database.sql (no psql needed on the host):
