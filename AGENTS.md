@@ -25,7 +25,7 @@ schema** of whatever they reach, so chain with `&&` and never point them at a sh
 (they refuse a database whose name does not end in `_test`).
 
 ```sh
-P=55491   # any free port
+P=55491   # any free port: check `docker ps` first
 docker run -d --name numeros-pg-$P -p $P:5432 -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=numeros_test postgres:17 &&
   until docker exec numeros-pg-$P pg_isready -U postgres -q; do sleep 1; done &&
   NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PORT=$P go test ./...
@@ -34,8 +34,11 @@ docker run -d --name numeros-pg-$P -p $P:5432 -e POSTGRES_PASSWORD=pg -e POSTGRE
 docker exec -i numeros-pg-$P psql -q -U postgres -d numeros_test -v password="'test'" -f - < docs/database.sql &&
   NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PORT=$P NUMEROS_TEST_APP_PASSWORD=test go test -run TestReadsAsTheAppUser ./...
 
-docker rm -f numeros-pg-$P
+docker rm -f numeros-pg-$P   # always, even when a test failed
 ```
+
+Without a database most of the tests that guard the rules below skip: a change to queries, grants or
+the account pages is only tested by the database run.
 
 Test variables: `NUMEROS_TEST_DB_HOST`, `_PORT` (5432), `_NAME` (numeros_test), `_USER` (postgres),
 `_PASSWORD` (pg), `NUMEROS_TEST_APP_PASSWORD` (the `numeros` role, for `TestReadsAsTheAppUser`).
@@ -121,6 +124,8 @@ Privacy is the product. A change that weakens one of these is a bug, even if a t
 ## Releasing
 
 - `VERSION` holds `X.Y.Z`; CI adds the build number (`X.Y.Z-BUILD`). Bump it for user-visible changes.
+  Docs- or tests-only changes don't bump it; unreleased work goes under `## Unreleased` in
+  `CHANGELOG.md` (the release notes page skips that section).
 - Every version needs its `CHANGELOG.md` entry (`TestChangelogHasVersion`); it is also the
   `/release-notes` page, so write it for the people who use the site.
 - A change that touches the grants says so in the changelog: installs must re-run `docs/database.sql`.
