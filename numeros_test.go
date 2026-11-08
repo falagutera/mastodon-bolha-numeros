@@ -178,6 +178,15 @@ func TestPage(t *testing.T) {
 
 // --- against a database with the parts of Mastodon's schema numeros reads ---
 
+// testSchema drops the public schema: refuse any database not named *_test, so a wrong
+// host or port never wipes a real one.
+func mustBeTestDB(t *testing.T, name string) {
+	t.Helper()
+	if !strings.HasSuffix(name, "_test") {
+		t.Fatalf("refusing to reset database %q: its name must end in _test", name)
+	}
+}
+
 const testSchema = `
 DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;
 CREATE TABLE accounts (id bigint PRIMARY KEY, username text NOT NULL, domain text, display_name text DEFAULT '',
@@ -225,6 +234,7 @@ func TestCollectKeepsToThePrivacyRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.pool.Close()
+	mustBeTestDB(t, cfg.dbName)
 	if _, err := db.pool.Exec(ctx, testSchema); err != nil {
 		t.Fatal(err)
 	}

@@ -357,7 +357,7 @@ func TestAccountPages(t *testing.T) {
 	// Signed in: own numbers, everyone who talks, every link.
 	res, body = do("GET", "/minhaconta", sess, nil)
 	for _, want := range []string{"Ana", "@ana", "Segredo", "SoDM", "SoSeguidores", "Abrir página pública", "321", "favs dados", ">777<",
-		"Sua mídia", "FotoPrivada", "MelhorPost", "Como você posta", `class="l4"`, "DeQuemDouFav", "SeguidorNovo", "Calado", "#GatosDaAna", "servidor.salvo"} {
+		"Sua mídia", "FotoPrivada", "MelhorPost", "Como você posta", "com aviso de conteúdo", `class="l4"`, "DeQuemDouFav", "SeguidorNovo", "Calado", "#GatosDaAna", "servidor.salvo"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("own page lacks %q", want)
 		}
@@ -410,7 +410,7 @@ func TestAccountPages(t *testing.T) {
 		}
 	}
 	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf, "favs dados", ">777<", ">80<", ">40<", ">100<",
-		"Sua mídia", "FotoPrivada", "MelhorPost", "Como você posta", "heat", "DeQuemDouFav", "SeguidorNovo", "Calado", "GatosDaAna", "servidor.salvo", "DMs"} {
+		"Sua mídia", "FotoPrivada", "MelhorPost", "Como você posta", "com aviso de conteúdo", "heat", "DeQuemDouFav", "SeguidorNovo", "Calado", "GatosDaAna", "servidor.salvo", "DMs"} {
 		if strings.Contains(body, not) {
 			t.Errorf("public page shows %q", not)
 		}
@@ -538,6 +538,7 @@ func TestMeQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.pool.Close()
+	mustBeTestDB(t, cfg.dbName)
 	if _, err := db.pool.Exec(ctx, testSchema); err != nil {
 		t.Fatal(err)
 	}

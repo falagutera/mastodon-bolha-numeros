@@ -17,18 +17,31 @@ role with column-level grants) and the admin API, once an hour, and serves:
 ```sh
 gofmt -l .            # must print nothing
 go vet ./...
-go test ./...         # no database: the database tests skip themselves
-
-# with a database (what CI runs):
-docker run -d --name numeros-pg -p 5432:5432 -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=numeros_test postgres:17
-NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PASSWORD=pg go test ./...
-
-# then every query again as the app's role, with only the grants of docs/database.sql:
-psql -h 127.0.0.1 -U postgres -d numeros_test -v password="'test'" -f docs/database.sql
-NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_APP_PASSWORD=test go test -run TestReadsAsTheAppUser ./...
-
-NUMEROS_DUMP=/tmp/me.html go test -run TestAccountPages ./...   # writes a rendered /minhaconta to look at
+go test ./...         # without NUMEROS_TEST_DB_HOST the database tests skip themselves
 ```
+
+With a database (what CI runs). Pick a free port: the tests **drop and recreate the `public`
+schema** of whatever they reach, so chain with `&&` and never point them at a shared Postgres
+(they refuse a database whose name does not end in `_test`).
+
+```sh
+P=55491   # any free port
+docker run -d --name numeros-pg-$P -p $P:5432 -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=numeros_test postgres:17 &&
+  until docker exec numeros-pg-$P pg_isready -U postgres -q; do sleep 1; done &&
+  NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PORT=$P go test ./...
+
+# then every query again as the app's role, with only the grants of docs/database.sql (no psql needed on the host):
+docker exec -i numeros-pg-$P psql -q -U postgres -d numeros_test -v password="'test'" -f - < docs/database.sql &&
+  NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PORT=$P NUMEROS_TEST_APP_PASSWORD=test go test -run TestReadsAsTheAppUser ./...
+
+docker rm -f numeros-pg-$P
+```
+
+Test variables: `NUMEROS_TEST_DB_HOST`, `_PORT` (5432), `_NAME` (numeros_test), `_USER` (postgres),
+`_PASSWORD` (pg), `NUMEROS_TEST_APP_PASSWORD` (the `numeros` role, for `TestReadsAsTheAppUser`).
+
+To look at the rendered own page: `mkdir -p /tmp/numeros-dump && NUMEROS_DUMP=/tmp/numeros-dump go test -run TestAccountPages ./...`
+(a **directory**: it writes `me.html` and `numeros.css` there).
 
 ## Map
 
@@ -46,7 +59,13 @@ NUMEROS_DUMP=/tmp/me.html go test -run TestAccountPages ./...   # writes a rende
 | `i18n.go` | every text, in `pt` and `en` |
 | `templates/` | `page.html` (public), `me.html` (account pages), `numeros.css` |
 | `docs/database.sql` | the role and **every grant**; `docs/kubernetes.yaml` an example deployment |
-| `numeros_test.go` | `testSchema`: the slice of Mastodon's schema the tests build |
+| `snapshot.go` `snowflake()`, `me.go` `bounds` | turn times into `statuses.id` ranges (Mastodon ids are time-ordered) |
+
+Tests: `numeros_test.go` (`testSchema`, the slice of Mastodon's schema the tests build; public
+page and privacy rules), `me_test.go` (sign-in and pages against a fake instance: `TestAccountPages`
+with fake numbers from `testMore()`; `TestMeQueries`), `more_test.go` (`TestMoreQueries`, SQL
+fixtures for the extra cards; `TestReadsAsTheAppUser`), `backup_test.go`, `i18n_test.go`,
+`changelog_test.go`.
 
 ## Rules that must hold
 
@@ -57,32 +76,47 @@ Privacy is the product. A change that weakens one of these is a bug, even if a t
    and make sure `TestReadsAsTheAppUser` covers the query. Never grant `accounts.private_key`
    or any token, password or e-mail column.
 2. **Newer tables are optional.** A query on a table an older install has not granted goes
-   through `optional()` (savepoint; only "no grant" and "no table" are swallowed), so the page
-   stays up with the card missing.
+   through `optional()` (savepoint; only "no grant" and "no table" are swallowed, logged once per
+   process), so the page stays up with the card missing.
 3. **Public lists use the shared filters.** People: `localOK` / `remoteOK` (discoverable, good
    standing, not a bot, no `#nonumeros`). Posts: `postOK` plus `postExtra` (public, no content
    warning, no sensitive media, not local-only, not expiring). Apps only with 3+ users.
-4. **Visibility:** 0 public, 1 unlisted, 2 followers-only, 3 direct, 4 limited. Direct and limited
-   posts never feed anything another person could see, and are left out of languages, apps and
-   highlights even on the person's own page. Text behind a content warning shows only the warning.
-5. **Own page vs public page.** `me.html` renders both; private cards sit behind
-   `{{if and .More (not .Public)}}`. `/@user` exists only while the person opted in, and
-   `me_test.go` checks what it may show. Keep those assertions when you add a card.
+4. **Visibility:** 0 public, 1 unlisted, 2 followers-only, 3 direct, 4 limited (`vis >= 3` = private
+   conversation). Direct and limited posts never feed anything another person could see. On the
+   person's own page some plain totals count them (with a CW, edited, self-deleting, the
+   visibility split) while new posts and replies do not (see `MeMore` in `more.go`); they stay
+   out of anything that names or lists: languages, apps, media grid, best posts, top poll.
+   Text behind a content warning shows only the warning.
+5. **Own page vs public page.** `me.html` renders both. The extra cards are only computed for
+   the own page (`mePage` fills `More` only when not public) and the template guards them with
+   `{{if and .More (not .Public)}}`. `/@user` exists only while the person opted in. In
+   `TestAccountPages` every private label goes in two lists: the own page's `want` list and the
+   public page's `not` list (Portuguese labels: the test fetches the pages without `/en`).
 6. **No inline script or style.** CSP is `script-src 'self'; style-src 'self'`; put CSS in
    `numeros.css`. (An edge may inject a same-origin `/__bolha/bar.js`; `'self'` covers it.)
 7. **Both languages.** Every key in `strs` exists in `pt` and `en` (`TestTextsInBothLanguages`).
 8. **Bounded work.** Account queries run in a read-only transaction with a statement timeout, one
    at a time per process (the `meCache` semaphore). Keep new queries index-friendly and windowed
-   (by `statuses.id` ranges, like the existing ones).
+   by `statuses.id` ranges (`snowflake(t)`, `bounds.get`), like the existing ones.
 
 ## Adding a number (the usual change)
 
-1. Query in `store.go` (public) or `more.go` (own page), inside the existing transaction.
-2. Grant in `docs/database.sql`, table/columns in `testSchema`, fixture rows in the test, a check
-   that the privacy rules above hold for it (a DM, a CW post, a non-discoverable account must not show).
-3. Field in the snapshot or `MeMore`, view in `moreview.go`, markup in the template, texts in both
-   languages in `i18n.go`.
-4. `gofmt`, `go vet`, the tests with a database, and `TestReadsAsTheAppUser` with the new grant.
+0. **Check it is not there already.** Grep `i18n.go` for the label you would write (both
+   languages) and read the card in `templates/me.html` or `page.html`. The own page already has,
+   among others: posting style (new posts, replies, with a CW, edited, self-deleting, DMs
+   received), visibility split, heat map by hour, streaks, languages, apps, media, best posts,
+   who you fav and boost, new and quiet followers, polls, hashtags, bookmarks.
+1. Query in `store.go` (public) or `more.go` (own page), inside the existing transaction; reuse
+   a pass that already reads the same rows (e.g. `ownPosts`) instead of a new scan.
+2. **Only if the query reads a table or column not granted yet** (check `docs/database.sql`):
+   add the grant, add it to `testSchema`, and wrap the query in `optional()` if older installs
+   may lack it.
+3. Fixture rows and a `check(...)` in `TestMoreQueries` (or the public-page test), including the
+   cases that must not count or show: a DM, a CW post, a non-discoverable account.
+4. Field in the snapshot or `MeMore`, view in `moreview.go`, markup in the template, texts in
+   both languages in `i18n.go`, a fake value in `testMore()`, the label in the `TestAccountPages`
+   lists (rule 5).
+5. `gofmt`, `go vet`, the tests with a database, and `TestReadsAsTheAppUser` with the grants.
 
 ## Releasing
 

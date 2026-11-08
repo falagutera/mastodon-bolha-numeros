@@ -60,6 +60,7 @@ func TestMoreQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.pool.Close()
+	mustBeTestDB(t, cfg.dbName)
 	if _, err := db.pool.Exec(ctx, testSchema); err != nil {
 		t.Fatal(err)
 	}
