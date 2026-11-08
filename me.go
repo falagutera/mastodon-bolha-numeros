@@ -294,14 +294,17 @@ func (s *store) talkers(ctx context.Context, tx pgx.Tx, ts []any, first int64, c
 			WHERE n.account_id = $1 AND n.id >= $5 AND n.created_at >= $4`+s.notifExtra+` AND n.type = 'mention'),
 		m AS (SELECT id, count(*) FILTER (WHERE at >= $2) AS d, count(*) FILTER (WHERE at >= $3) AS w, count(*) AS mo,
 			count(*) FILTER (WHERE pub AND at >= $2) AS pd, count(*) FILTER (WHERE pub AND at >= $3) AS pw, count(*) FILTER (WHERE pub) AS pm
-			FROM n GROUP BY 1)
+			FROM n GROUP BY 1),
+		ok AS (SELECT m.* FROM m JOIN accounts a ON a.id = m.id WHERE a.suspended_at IS NULL AND a.id <> $1),
+		tot AS (SELECT COALESCE(sum(pd), 0) AS sd, COALESCE(sum(pw), 0) AS sw, COALESCE(sum(pm), 0) AS sm FROM ok),
+		-- the top 100 by all mentions (own page) and by public ones (public page): who
+		-- makes the public list never depends on private messages
+		pick AS ((SELECT id FROM ok ORDER BY mo DESC, id LIMIT 100) UNION (SELECT id FROM ok ORDER BY pm DESC, id LIMIT 100))
 		SELECT a.id, a.username, COALESCE(a.domain, ''), COALESCE(a.display_name, ''), COALESCE(a.avatar_file_name, ''),
-			COALESCE(a.url, a.uri, ''), m.d, m.w, m.mo, m.pd, m.pw, m.pm,
+			COALESCE(a.url, a.uri, ''), ok.d, ok.w, ok.mo, ok.pd, ok.pw, ok.pm,
 			CASE WHEN a.domain IS NULL THEN (`+localOK+`) ELSE (`+remoteOK+`) END,
-			sum(m.pd) OVER (), sum(m.pw) OVER (), sum(m.pm) OVER ()
-		FROM m JOIN accounts a ON a.id = m.id
-		WHERE a.suspended_at IS NULL AND a.id <> $1
-		ORDER BY m.mo DESC, a.id LIMIT 100`, append(ts, first)...)
+			tot.sd, tot.sw, tot.sm
+		FROM ok JOIN pick ON pick.id = ok.id JOIN accounts a ON a.id = ok.id CROSS JOIN tot`, append(ts, first)...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -385,7 +388,14 @@ func topTalkers(all []MeTalker, period string, public bool, n int) []MeTalker {
 			out = append(out, t)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].count(period, public) > out[j].count(period, public) })
+	// Ties by name, never by the order the rows came in: that order would tell
+	// who sends more private messages.
+	sort.Slice(out, func(i, j int) bool {
+		if a, b := out[i].count(period, public), out[j].count(period, public); a != b {
+			return a > b
+		}
+		return out[i].Acct < out[j].Acct
+	})
 	if len(out) > n {
 		out = out[:n]
 	}
@@ -461,6 +471,9 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Durat
 	defer func() { <-c.sem }()
 	if m := c.cached(id); m != nil && c.now().Sub(m.At) < maxAge { // computed while we waited
 		return m, nil
+	}
+	if c.isGone(id, maxAge) { // found missing while we waited
+		return nil, errNoAccount
 	}
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()

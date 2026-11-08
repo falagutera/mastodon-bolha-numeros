@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -124,6 +125,14 @@ func TestTopTalkersAndLinks(t *testing.T) {
 	if got := topTalkers(m.Talkers, "d", false, 10); len(got) != 1 {
 		t.Errorf("zero counts stay out: %+v", got)
 	}
+	// Equal public counts: by name, whatever order the rows (sorted by all mentions) came in.
+	tie := []MeTalker{
+		{Person: Person{Acct: "zzz"}, Counts: map[string]int64{"m": 7}, Public: map[string]int64{"m": 2}, Shown: true},
+		{Person: Person{Acct: "bee"}, Counts: map[string]int64{"m": 2}, Public: map[string]int64{"m": 2}, Shown: true},
+	}
+	if got := topTalkers(tie, "m", true, 10); got[0].Acct != "bee" {
+		t.Errorf("public tie order follows private mentions: %s first", got[0].Acct)
+	}
 	if got := shownLinks(m.Links, false, 12); len(got) != 2 {
 		t.Errorf("private links, one per URL: %+v", got)
 	}
@@ -182,6 +191,21 @@ func TestMeCache(t *testing.T) {
 		t.Errorf("a gone account is forgotten: %v", err)
 	}
 	before := calls
+	// Many visits at once to a missing account: one lookup, not one each.
+	c.forget(7)
+	c.mu.Lock()
+	delete(c.gone, 7)
+	c.mu.Unlock()
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); c.get(ctx, 7, publicFresh, publicFresh) }()
+	}
+	wg.Wait()
+	if calls-before != 1 {
+		t.Errorf("concurrent visits to a missing account: %d lookups", calls-before)
+	}
+	before = calls
 	for i := 0; i < 50; i++ { // a stale /@name hit over and over
 		c.get(ctx, 7, publicFresh, publicFresh)
 	}
