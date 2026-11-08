@@ -30,7 +30,7 @@ type pageEntry struct {
 
 func openPages(path string) (*pages, error) {
 	p := &pages{path: path, byID: map[int64]pageEntry{}, byName: map[string]int64{}}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(filepath.Clean(path)) // the operator's setting, never a visitor's input
 	if errors.Is(err, fs.ErrNotExist) {
 		return p, nil
 	}
