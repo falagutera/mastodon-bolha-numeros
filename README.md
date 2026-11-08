@@ -9,6 +9,8 @@ for bolha.us, in Portuguese (`/`) and English (`/en/`). AGPL-3.0.
 - **Content:** latest links, photos and polls from public posts.
 - **Server:** users, active users, posts, known servers and age; new users and reports per
   week, month, 6 months and year; apps, languages, and the servers that talk to the instance the most.
+- **Your numbers** (`/minhaconta`), after signing in with the instance, and a public
+  `/@you` page for whoever turns it on (see [Your numbers](#your-numbers)).
 - **Software and space:** versions and space used, as the admin dashboard reports them
   (Mastodon, Ruby, PostgreSQL, Redis, search, libvips, FFmpeg; database, Redis, media), plus the
   search index size from OpenSearch/Elasticsearch.
@@ -28,6 +30,31 @@ Ranking people in public is the delicate part, so:
 - An **app** only shows up when at least 3 people used it, so a personal app's name doesn't say who posts with it.
 - Reports are only counted. The page asks search engines not to index it.
 
+## Your numbers
+
+`/minhaconta` (`/en/minhaconta`) shows a person their own numbers after they sign in with the
+instance: posts, boosts and favs received and given, mentions, followers gained and people
+followed, for today, 7 and 30 days; who talks to them the most; the links they shared.
+
+- **Sign-in** is OAuth with PKCE and the `profile` scope, the same flow as circles: the token is
+  only used to ask who the person is and is revoked at once. The session is an HMAC-signed,
+  `__Host-` cookie for 4 hours; the forms (public page, sign out) carry a token tied to it.
+- **Only the person sees it**, unless they open a **public page** at `/@username`. Off by default.
+  The public page only shows the people who talk to them under the main page's rules
+  (discoverable, no `#nonumeros`, in good standing), only links from posts the main page could
+  show, and no follower numbers when they hide their social graph. `#nonumeros` in the bio, a
+  limited or moved account, or a renamed one take it down at once, whatever the setting.
+- A `/@name` that isn't on the list of open pages is a 404 without a query, so names can't be
+  probed through the database. The list is a JSON file (`NUMEROS_PAGES_FILE`) with account ids and
+  names only; put it on a persistent volume.
+- **Database load:** numbers are computed on the visit from the account's own rows, through the
+  `(account_id, id)` indexes; notifications and favourites start at an id found by binary search on
+  the primary key (cached for an hour). On bolha.us the busiest account (156k notifications) takes
+  ~230 ms. Visits have their own connection, one computation at a time, 5 s per query; numbers are
+  kept 5 minutes for `/minhaconta` and 15 for public pages.
+- Received boosts, favs and mentions come from notifications, so what the person muted,
+  blocked or filtered is left out, as in their Mastodon.
+
 ## Install
 
 | Variable | Default | |
@@ -43,6 +70,10 @@ Ranking people in public is the delicate part, so:
 | `NUMEROS_EVERY` / `NUMEROS_OFFSET` | `1h` / `7m` | collect every hour at :07 |
 | `NUMEROS_SNAPSHOT` | | file to keep the last snapshot across restarts |
 | `NUMEROS_PLATFORM` | | `kubernetes`, `rancher`: platform versions (see below) |
+| `NUMEROS_CLIENT_ID` / `_SECRET` | | an OAuth app on the instance (scope `profile`, redirect `$PUBLIC_URL/auth/callback`); empty: no `/minhaconta` |
+| `NUMEROS_PUBLIC_URL` | | this app's URL (`https://numeros.bolha.us`), for sign-in |
+| `NUMEROS_SESSION_SECRET` | | at least 32 random bytes; signs the session cookie |
+| `NUMEROS_PAGES_FILE` | | who opened a public page, on a persistent volume (`/data/public.json`) |
 
 ### Your instance
 
@@ -130,6 +161,10 @@ NUMEROS_TEST_DB_HOST=127.0.0.1 NUMEROS_TEST_DB_PORT=5432 NUMEROS_TEST_DB_PASSWOR
 The database test builds the parts of Mastodon's schema numeros reads and checks the privacy
 rules above against real queries (non-discoverable, opted-out, bot and suspended accounts, hidden
 graphs, content warnings, sensitive media, local-only and expiring posts, single-person apps).
+Another one checks the per-account numbers: periods, the 30-day bound, filtered notifications,
+suspended and remote accounts, and what the public page may show. The page tests run the whole
+sign-in against a fake instance (state, PKCE, token revoked, forged cookies, form tokens) and check
+that a public page only shows what it should and goes away when it must.
 CI runs gofmt, vet, the tests against PostgreSQL 17, govulncheck and the shared security scanners.
 
 Versions are `X.Y.Z-BUILD` (VERSION + pipeline); every version needs its CHANGELOG entry,

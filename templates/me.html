@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="{{if eq .Lang "en"}}en{{else}}pt-BR{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{if .Public}}{{.Acct}} · {{.T.title}}{{else}}{{.T.me_title}} · {{.T.title}}{{end}}</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/numeros.css?v={{.Version}}">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="{{if eq .Lang "en"}}/en/{{else}}/{{end}}"><span class="bubble"></span>numeros<span class="dom">.{{.Name}}</span></a>
+    <span class="nav">{{if and .LoggedIn (not .Public)}}<form class="inline" method="post" action="/logout"><input type="hidden" name="t" value="{{.CSRF}}"><input type="hidden" name="lang" value="{{.Lang}}"><button class="toggle" type="submit">{{.T.me_logout}}</button></form>{{end}}<a class="toggle" href="{{.OtherHref}}" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}">{{.Other}}</a></span>
+  </div>
+
+{{if .Error}}
+  <header class="hero">
+    <p class="kicker">{{.T.me_title}}</p>
+    <h1>{{.T.err_h1}}</h1>
+    <p class="lede">{{.Error}}</p>
+    <p><a class="btn" href="{{if eq .Lang "en"}}/en/minhaconta{{else}}/minhaconta{{end}}">{{.T.err_back}}</a></p>
+  </header>
+{{else if and (not .Public) (not .LoggedIn)}}
+  <header class="hero">
+    <p class="kicker">{{.T.me_title}}</p>
+    <h1>{{.T.me_h1_pre}}<em>{{.T.me_h1_em}}</em>.</h1>
+    <p class="lede">{{.T.me_lede_login}}</p>
+    <p><a class="btn" href="/login?lang={{.Lang}}">{{.T.me_login}}</a></p>
+    <p class="note">{{.T.me_login_note}}</p>
+  </header>
+{{else}}
+  <header class="hero">
+    <p class="kicker">{{if .Public}}{{.T.pub_kicker}}{{else}}{{.T.me_title}}{{end}}</p>
+    <div class="who-hero"><img class="av big" src="{{.Avatar}}" alt="" width="56" height="56" referrerpolicy="no-referrer"><span><b>{{.DisplayName}}</b><a href="{{.ProfileURL}}"{{if .Public}} rel="me"{{end}}>{{.Acct}}</a></span></div>
+    {{if .Public}}<h1>{{.T.pub_h1_pre}}<em>{{.Acct}}</em>.</h1>{{else}}<h1>{{.T.me_h1_pre}}<em>{{.T.me_h1_em}}</em>.</h1>{{end}}
+    <div class="stamp"><i></i>{{.Updated}}</div>
+  </header>
+
+  {{if not .Public}}<div class="card pub">
+    <h3>{{.T.me_page_h}}<small>{{if .PageOn}}{{.T.me_page_on_tag}}{{else}}{{.T.me_page_off_tag}}{{end}}</small></h3>
+    <div class="pubbody">
+      {{if .PageOn}}<p>{{.T.me_page_on}} <a href="{{.PageURL}}">{{.PageURL}}</a></p>
+      {{else if .CanPublic}}<p>{{.T.me_page_off}}</p>
+      {{else}}<p>{{.T.me_page_blocked}}</p>{{end}}
+      {{if or .PageOn .CanPublic}}<form method="post" action="/minhaconta/publica"><input type="hidden" name="t" value="{{.CSRF}}"><input type="hidden" name="lang" value="{{.Lang}}"><input type="hidden" name="on" value="{{if .PageOn}}0{{else}}1{{end}}"><button class="btn{{if .PageOn}} ghost{{end}}" type="submit">{{if .PageOn}}{{.T.me_page_turn_off}}{{else}}{{.T.me_page_turn_on}}{{end}}</button></form>{{end}}
+      <p class="note">{{.T.me_page_note}}</p>
+    </div>
+  </div>{{end}}
+
+  <section class="tiles top mine">
+    {{range $i, $t := .Totals}}<div class="tile{{if eq $i 0}} hl{{end}}"><div class="lab">{{$t.Label}}</div><div class="val">{{$t.Value}}</div>{{if $t.Sub}}<div class="sub">{{$t.Sub}}</div>{{end}}</div>
+    {{end}}
+  </section>
+
+  <div class="cat"><h2>{{.T.me_activity}}</h2><span class="rule"></span></div>
+  <div class="periods" role="radiogroup" aria-label="{{.T.period}}">
+    {{range $i, $p := .Periods}}<input type="radio" name="p" id="p-{{$p.Key}}"{{if eq $i 2}} checked{{end}}><label for="p-{{$p.Key}}">{{$p.Value}}</label>
+    {{end}}
+  </div>
+  <section class="tiles counts">
+    {{range .Counts}}<div class="tile"><div class="lab">{{.Label}}</div>{{range .Values}}<div class="val p p-{{.Key}}">{{.Value}}</div>{{end}}</div>
+    {{end}}
+  </section>
+  <p class="note">{{.T.me_notif_note}}</p>
+
+  <div class="two gap">
+    <div class="card"><h3>{{.TalkersTitle}}<small>{{.T.u_external}}</small></h3>
+      {{range .Talkers}}<div class="p p-{{.Key}}">{{if .Rows}}<ol class="rank">
+        {{range .Rows}}<li><span class="n">{{.N}}</span><img class="av" src="{{.Avatar}}" alt="" width="30" height="30" loading="lazy" referrerpolicy="no-referrer"><span class="who"><a href="{{.URL}}" rel="nofollow noopener"><b>{{.Name}}</b><span>{{.Acct}}</span></a></span><span class="num">{{.Value}}</span><svg class="bar" viewBox="0 0 100 2" preserveAspectRatio="none" aria-hidden="true"><rect width="{{.Bar}}" height="2"/></svg></li>
+        {{end}}</ol>{{else}}<p class="emptyrow">{{$.T.me_nobody}}</p>{{end}}</div>
+      {{end}}
+    </div>
+    <div class="card"><h3>{{.T.me_links}}<small>{{.T.d30}}</small></h3>
+      {{if .Links}}<div class="mylinks">
+      {{range $i, $l := .Links}}<a class="link" href="{{$l.URL}}" rel="nofollow noopener ugc"><b>{{$l.Title}}</b><span>{{$l.Domain}}</span> <span class="by">· {{index $.LinkSubs $i}}</span></a>
+      {{end}}</div>{{else}}<p class="emptyrow">{{.T.me_nolinks}}</p>{{end}}
+    </div>
+  </div>
+{{end}}
+
+  <footer>
+    <div><b>{{.T.how_h}}</b> {{if .Public}}{{.T.pub_how}}{{else}}{{.T.me_how}}{{end}}</div>
+    <div>numeros {{.Version}} · <a href="https://gitlab.gutocarvalho.net/open/bolha/numeros">{{.T.code}}</a> · <a href="/release-notes">{{.T.news}}</a>{{if .ParentURL}} · {{.T.part_of}} <a href="{{.ParentURL}}">{{.ParentName}}</a>{{end}}</div>
+  </footer>
+</div>
+</body>
+</html>

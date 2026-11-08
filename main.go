@@ -50,6 +50,13 @@ type config struct {
 	parentName, parentURL string // "part of ..." in the footer
 
 	platform []string // NUMEROS_PLATFORM: "kubernetes", optionally "rancher"
+
+	// Sign-in, for /minhaconta and the public pages (off when clientID is empty).
+	publicURL    string // this app's own URL, for the OAuth redirect
+	clientID     string
+	clientSecret string
+	secret       []byte // signs the session cookie
+	pagesPath    string // who turned on their public page
 }
 
 func env(k, def string) string {
@@ -109,6 +116,24 @@ func loadConfig() (config, error) {
 	}
 	if c.dbPassword == "" {
 		return c, errors.New("config: NUMEROS_DB_PASSWORD is not set")
+	}
+	c.clientID = env("NUMEROS_CLIENT_ID", "")
+	if c.clientID != "" {
+		c.clientSecret = os.Getenv("NUMEROS_CLIENT_SECRET")
+		c.secret = []byte(os.Getenv("NUMEROS_SESSION_SECRET"))
+		c.publicURL = strings.TrimRight(env("NUMEROS_PUBLIC_URL", ""), "/")
+		c.pagesPath = env("NUMEROS_PAGES_FILE", "")
+		if p, err := url.Parse(c.publicURL); err != nil || p.Scheme != "https" || p.Host == "" || p.Path != "" {
+			return c, errors.New("config: NUMEROS_PUBLIC_URL must be this app's https URL, without a path")
+		}
+		switch {
+		case c.clientSecret == "":
+			return c, errors.New("config: NUMEROS_CLIENT_SECRET is not set")
+		case len(c.secret) < 32:
+			return c, errors.New("config: NUMEROS_SESSION_SECRET must be at least 32 bytes")
+		case c.pagesPath == "":
+			return c, errors.New("config: NUMEROS_PAGES_FILE is not set (a file on a persistent volume)")
+		}
 	}
 	var err error
 	if c.loc, err = time.LoadLocation(env("NUMEROS_TIMEZONE", "America/Sao_Paulo")); err != nil {
@@ -171,6 +196,22 @@ func main() {
 	srv, err := newServer(cfg, col)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if cfg.clientID != "" {
+		// Visits get their own connection: they never wait on the hourly round.
+		visits, err := openStore(ctx, cfg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := visits.schema(ctx); err != nil {
+			log.Fatal(err)
+		}
+		pg, err := openPages(cfg.pagesPath)
+		if err != nil {
+			log.Fatalf("NUMEROS_PAGES_FILE: %v", err)
+		}
+		srv.enableAccounts(pg, newMeCache(meCompute(visits, cfg)), client)
+		log.Printf("sign-in on: %d public pages", pg.count())
 	}
 	go col.run(ctx)
 

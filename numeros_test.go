@@ -181,14 +181,16 @@ const testSchema = `
 DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;
 CREATE TABLE accounts (id bigint PRIMARY KEY, username text NOT NULL, domain text, display_name text DEFAULT '',
   avatar_file_name text, url text, uri text DEFAULT '', discoverable boolean, suspended_at timestamp, silenced_at timestamp,
-  moved_to_account_id bigint, memorial boolean DEFAULT false, actor_type text, note text DEFAULT '', hide_collections boolean, sensitized_at timestamp);
+  moved_to_account_id bigint, memorial boolean DEFAULT false, actor_type text, note text DEFAULT '', hide_collections boolean, sensitized_at timestamp,
+  created_at timestamp DEFAULT now());
 CREATE TABLE users (id bigserial PRIMARY KEY, account_id bigint, approved boolean DEFAULT true, confirmed_at timestamp DEFAULT now(),
   disabled boolean DEFAULT false, created_at timestamp DEFAULT now(), current_sign_in_at timestamp);
 CREATE TABLE account_stats (account_id bigint PRIMARY KEY, statuses_count bigint DEFAULT 0, followers_count bigint DEFAULT 0, following_count bigint DEFAULT 0);
 CREATE TABLE statuses (id bigint PRIMARY KEY, account_id bigint, text text DEFAULT '', created_at timestamp DEFAULT now(),
   visibility int DEFAULT 0, reblog_of_id bigint, deleted_at timestamp, sensitive boolean DEFAULT false, spoiler_text text DEFAULT '',
   language text, application_id bigint, poll_id bigint, local_only boolean, expires_at timestamp);
-CREATE TABLE notifications (id bigserial PRIMARY KEY, account_id bigint, from_account_id bigint, type text, created_at timestamp DEFAULT now());
+CREATE TABLE notifications (id bigserial PRIMARY KEY, account_id bigint, from_account_id bigint, type text, created_at timestamp DEFAULT now(),
+  filtered boolean DEFAULT false);
 CREATE TABLE favourites (id bigserial PRIMARY KEY, account_id bigint, status_id bigint, created_at timestamp DEFAULT now());
 CREATE TABLE follows (id bigserial PRIMARY KEY, account_id bigint, target_account_id bigint, created_at timestamp DEFAULT now());
 CREATE TABLE preview_cards (id bigserial PRIMARY KEY, url text, title text);

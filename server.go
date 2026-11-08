@@ -20,11 +20,15 @@ import (
 var templateFS embed.FS
 
 type server struct {
-	cfg  config
-	col  *collector
-	tmpl *template.Template
-	css  []byte
-	csp  string
+	cfg   config
+	col   *collector
+	tmpl  *template.Template
+	css   []byte
+	csp   string
+	meCSP string // pages with a session and forms; also lets the edge's bolha-bar script load
+
+	acc    *accounts    // nil: /minhaconta and public pages are off
+	client *http.Client // to the instance, for sign-in
 }
 
 func newServer(cfg config, col *collector) (*server, error) {
@@ -49,7 +53,9 @@ func newServer(cfg config, col *collector) (*server, error) {
 	}
 	csp := "default-src 'none'; style-src 'self'; img-src " + strings.Join(img, " ") +
 		"; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-	return &server{cfg: cfg, col: col, tmpl: tmpl, css: css, csp: csp}, nil
+	meCSP := "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src " + strings.Join(img, " ") +
+		"; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	return &server{cfg: cfg, col: col, tmpl: tmpl, css: css, csp: csp, meCSP: meCSP}, nil
 }
 
 func (s *server) routes() http.Handler {
@@ -66,15 +72,20 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	relnotes.Register(mux, relnotes.PageOptions{App: "numeros", Domain: s.cfg.name, Version: version,
 		Source: "https://gitlab.gutocarvalho.net/open/bolha/numeros", LangKey: "numeros-lang", Style: string(s.css)}, releases)
-	return headers(mux, s.csp)
+	if s.acc != nil {
+		s.accountRoutes(mux)
+	}
+	return headers(mux, s.csp, s.meCSP)
 }
 
-func headers(next http.Handler, csp string) http.Handler {
+func headers(next http.Handler, csp, meCSP string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		if strings.HasPrefix(r.URL.Path, "/release-notes") {
 			// The shared release-notes page carries its own inline style and language switch.
 			h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		} else if accountPath(r.URL.Path) {
+			h.Set("Content-Security-Policy", meCSP)
 		} else {
 			h.Set("Content-Security-Policy", csp)
 		}
@@ -159,6 +170,7 @@ type view struct {
 	Name                   string
 	ParentName, ParentURL  string
 	Version                string
+	MeHref                 string // "Seus números", when sign-in is on
 }
 
 func (s *server) page(w http.ResponseWriter, lang string) {
@@ -205,6 +217,9 @@ func (s *server) view(lang string, snap *Snapshot, now time.Time) view {
 	t := s.texts(lang)
 	v := view{Lang: lang, T: t, Other: t["lang_other"], OtherHref: t["lang_href"], Version: version,
 		Name: s.cfg.name, ParentName: s.cfg.parentName, ParentURL: s.cfg.parentURL}
+	if s.acc != nil {
+		v.MeHref = meHref(lang)
+	}
 	if snap == nil {
 		return v
 	}

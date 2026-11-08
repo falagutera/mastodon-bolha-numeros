@@ -13,7 +13,7 @@
 <div class="wrap">
   <div class="top">
     <a class="brand" href="{{if eq .Lang "en"}}/en/{{else}}/{{end}}"><span class="bubble"></span>numeros<span class="dom">.{{.Name}}</span></a>
-    <a class="toggle" href="{{.OtherHref}}" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}">{{.Other}}</a>
+    <span class="nav">{{if .MeHref}}<a class="toggle me" href="{{.MeHref}}">{{.T.nav_me}}</a>{{end}}<a class="toggle" href="{{.OtherHref}}" hreflang="{{if eq .Lang "en"}}pt-BR{{else}}en{{end}}">{{.Other}}</a></span>
   </div>
 
   <header class="hero">

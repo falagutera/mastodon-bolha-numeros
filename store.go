@@ -40,6 +40,8 @@ type store struct {
 	// postExtra adds the filters for columns only some Mastodons have
 	// (local-only and expiring posts, from the bolha.us build).
 	postExtra string
+	// notifExtra leaves out notifications the person's policy filtered (Mastodon 4.3+).
+	notifExtra string
 }
 
 func openStore(ctx context.Context, c config) (*store, error) {
@@ -66,26 +68,31 @@ func openStore(ctx context.Context, c config) (*store, error) {
 
 // schema looks for the optional columns once.
 func (s *store) schema(ctx context.Context) error {
-	rows, err := s.pool.Query(ctx, `SELECT column_name FROM information_schema.columns
-		WHERE table_schema = current_schema() AND table_name = 'statuses' AND column_name IN ('local_only', 'expires_at')`)
+	rows, err := s.pool.Query(ctx, `SELECT table_name, column_name FROM information_schema.columns
+		WHERE table_schema = current_schema() AND ((table_name = 'statuses' AND column_name IN ('local_only', 'expires_at'))
+			OR (table_name = 'notifications' AND column_name = 'filtered'))`)
 	if err != nil {
 		return fmt.Errorf("reading the schema: %w", err)
 	}
 	defer rows.Close()
 	var extra []string
+	s.notifExtra = ""
 	for rows.Next() {
-		var c string
-		if err := rows.Scan(&c); err != nil {
+		var t, c string
+		if err := rows.Scan(&t, &c); err != nil {
 			return err
 		}
-		switch c {
-		case "local_only":
+		switch t + "." + c {
+		case "statuses.local_only":
 			extra = append(extra, "s.local_only IS NOT TRUE")
-		case "expires_at":
+		case "statuses.expires_at":
 			extra = append(extra, "s.expires_at IS NULL")
+		case "notifications.filtered":
+			s.notifExtra = " AND filtered = false"
 		}
 	}
 	sort.Strings(extra)
+	s.postExtra = ""
 	if len(extra) > 0 {
 		s.postExtra = " AND " + strings.Join(extra, " AND ")
 	}
@@ -94,12 +101,17 @@ func (s *store) schema(ctx context.Context) error {
 
 // read runs fn in a read-only transaction with a time limit.
 func (s *store) read(ctx context.Context, fn func(pgx.Tx) error) error {
+	return s.readLimit(ctx, "60s", fn)
+}
+
+// readLimit is read with a given statement_timeout (one of our constants).
+func (s *store) readLimit(ctx context.Context, limit string, fn func(pgx.Tx) error) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = '60s'"); err != nil {
+	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = '"+limit+"'"); err != nil {
 		return err
 	}
 	if err := fn(tx); err != nil {

@@ -3,6 +3,13 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.4.0 — 2026-11-08
+
+- **Your numbers (`/minhaconta`):** sign in with the instance and see your own numbers for today, 7 and 30 days: posts, boosts and favs received and given, mentions, followers gained, people you started following, who talks to you the most (local and remote) and the links you shared. Computed on the visit from your own rows and kept for 5 minutes.
+- **Public page, if you want one:** from `/minhaconta` you can open `/@you`, which anyone can see. It only shows the people who talk to you if their profile is discoverable and has no `#nonumeros`, only links from public posts, and leaves follower numbers out if you hide who follows you. Off by default; closing it, `#nonumeros` in your bio or a limited account takes it down at once.
+- Sign-in keeps nothing of yours: the instance's token is revoked right after it says who you are, and the session is a signed cookie. Off unless `NUMEROS_CLIENT_ID` is set.
+- Visits use their own database connection, one query at a time with a 5-second limit, so they never slow the hourly round.
+
 ## 0.3.1 — 2026-11-07
 
 - The card of people from other servers who mention the instance the most is now "Menções externas" / "External mentions".
