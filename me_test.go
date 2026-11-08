@@ -52,6 +52,26 @@ func TestPagesFile(t *testing.T) {
 	if again.on(7) || again.count() != 0 {
 		t.Error("still on")
 	}
+	// ana renames to "ana3"; bia takes the name "ana" and opens her page. ana's
+	// next visit (rename) must not take bia's page down.
+	if err := again.set(7, "ana", true, now); err != nil {
+		t.Fatal(err)
+	}
+	again.byID[7] = pageEntry{User: "ana", Since: now} // as stored before ana renamed
+	if err := again.set(8, "ana", true, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := again.rename(7, "ana3"); err != nil {
+		t.Fatal(err)
+	}
+	if id, ok := again.lookup("ana"); !ok || id != 8 {
+		t.Errorf("bia's page lost after ana's rename: %d %v", id, ok)
+	}
+	if id, ok := again.lookup("ana3"); !ok || id != 7 {
+		t.Errorf("ana's new name: %d %v", id, ok)
+	}
+	again.set(7, "", false, now)
+	again.set(8, "", false, now)
 	// A file that can't be written leaves the setting as it was.
 	bad := &pages{path: filepath.Join(t.TempDir(), "missing", "x.json"), byID: map[int64]pageEntry{}, byName: map[string]int64{}}
 	if err := bad.set(1, "bia", true, now); err == nil || bad.on(1) {
@@ -124,29 +144,38 @@ func TestMeCache(t *testing.T) {
 	now := c0now
 	c.now = func() time.Time { return now }
 	ctx := context.Background()
-	if _, err := c.get(ctx, 7, meFresh); err != nil || calls != 1 {
+	if _, err := c.get(ctx, 7, meFresh, meStale); err != nil || calls != 1 {
 		t.Fatalf("first: %v %d", err, calls)
 	}
-	c.get(ctx, 7, meFresh)
+	c.get(ctx, 7, meFresh, meStale)
 	if calls != 1 {
 		t.Error("not cached")
 	}
 	now = now.Add(6 * time.Minute)
-	c.get(ctx, 7, publicFresh) // public pages take older numbers
+	c.get(ctx, 7, publicFresh, publicFresh) // public pages take older numbers
 	if calls != 1 {
 		t.Error("public page recomputed too soon")
 	}
-	c.get(ctx, 7, meFresh)
+	c.get(ctx, 7, meFresh, meStale) // computes again (stamped c0now: 6 min old)
 	if calls != 2 {
 		t.Error("own page not recomputed after 5 minutes")
 	}
-	now = now.Add(time.Hour)
+	now = now.Add(20 * time.Minute)
 	fail = context.DeadlineExceeded
-	if m, err := c.get(ctx, 7, meFresh); err != nil || m == nil {
-		t.Errorf("a failure should fall back on older numbers: %v", err)
+	if m, err := c.get(ctx, 7, meFresh, meStale); err != nil || m == nil {
+		t.Errorf("own page: a failure should fall back on numbers under an hour old: %v", err)
+	}
+	// A public page never shows numbers past publicFresh: an opt-out in them
+	// would go unseen while the database is slow.
+	if m, err := c.get(ctx, 7, publicFresh, publicFresh); err == nil || m != nil {
+		t.Error("public page served stale numbers after a failure")
+	}
+	now = now.Add(2 * time.Hour)
+	if _, err := c.get(ctx, 7, meFresh, meStale); err == nil {
+		t.Error("own page served numbers over an hour old")
 	}
 	fail = errNoAccount
-	if _, err := c.get(ctx, 7, meFresh); err != errNoAccount || c.cached(7) != nil {
+	if _, err := c.get(ctx, 7, meFresh, meStale); err != errNoAccount || c.cached(7) != nil {
 		t.Errorf("a gone account is forgotten: %v", err)
 	}
 }
@@ -469,7 +498,8 @@ func TestMeQueries(t *testing.T) {
 		(1, 'ana', NULL, true, '', NULL, '2022-05-01'), (2, 'bia', NULL, true, '', NULL, now()),
 		(3, 'caio', NULL, true, '#nonumeros', NULL, now()), (6, 'eva', NULL, true, '', now(), now()),
 		(4, 'zed', NULL, true, '', NULL, now()),
-		(10, 'fala', 'remote.example', true, '', NULL, now()), (11, 'muda', 'remote.example', false, '', NULL, now())`)
+		(10, 'fala', 'remote.example', true, '', NULL, now()), (11, 'muda', 'remote.example', false, '', NULL, now()),
+		(12, 'tagi', 'remote.example', true, '<p>sem ranking <a href="https://remote.example/tags/nonumeros" class="mention hashtag" rel="tag">#<span>NoNumeros</span></a></p>', NULL, now())`)
 	exec(`INSERT INTO users (account_id) VALUES (1), (2), (3), (6)`)
 	exec(`INSERT INTO account_stats (account_id, statuses_count, followers_count, following_count) VALUES (1, 900, 321, 12)`)
 
@@ -519,7 +549,10 @@ func TestMeQueries(t *testing.T) {
 	mention(1, 3, 10*24*time.Hour, 0, false)  // caio, public
 	mention(1, 6, time.Minute, 0, false)      // eva (suspended), public
 	mention(1, 10, time.Minute, 0, true)      // filtered by ana's policy
-	mention(2, 10, time.Minute, 0, false)     // to someone else
+	mention(1, 2, time.Minute, 0, false)      // bia, but local-only: not for the public page
+	exec(`UPDATE statuses SET local_only = true WHERE id = (SELECT max(id) FROM statuses WHERE account_id = 2)`)
+	mention(1, 12, time.Minute, 0, false) // tagi@remote: #nonumeros as Mastodon's HTML
+	mention(2, 10, time.Minute, 0, false) // to someone else
 	exec(`INSERT INTO notifications (account_id, from_account_id, type, created_at, filtered) VALUES
 		(1, 2, 'reblog', $1, false), (1, 2, 'reblog', $2, false), (1, 10, 'favourite', $1, false)`,
 		at(time.Minute), at(5*24*time.Hour))
@@ -554,9 +587,9 @@ func TestMeQueries(t *testing.T) {
 		t.Errorf("account: %+v", m)
 	}
 	want := map[string]MeCounts{
-		"d": {Posts: 2, BoostsGiven: 1, BoostsGot: 1, FavsGiven: 1, FavsGot: 1, Followers: 1, Following: 1, Mentions: 3},
-		"w": {Posts: 3, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 1, FavsGot: 1, Followers: 1, Following: 1, Mentions: 3},
-		"m": {Posts: 4, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 2, FavsGot: 1, Followers: 2, Following: 1, Mentions: 6},
+		"d": {Posts: 2, BoostsGiven: 1, BoostsGot: 1, FavsGiven: 1, FavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
+		"w": {Posts: 3, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 1, FavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
+		"m": {Posts: 4, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 2, FavsGot: 1, Followers: 2, Following: 1, Mentions: 8},
 	}
 	for _, p := range periods {
 		if m.Periods[p] != want[p] {
@@ -569,12 +602,12 @@ func TestMeQueries(t *testing.T) {
 	}
 	// counts all today/30d, public today/30d, may show
 	wantT := map[string]string{"fala@remote.example": "1/2/0/1/true", "muda@remote.example": "1/1/1/1/false",
-		"bia": "0/1/0/0/true", "caio": "0/1/0/1/false"}
+		"bia": "1/2/0/0/true", "caio": "0/1/0/1/false", "tagi@remote.example": "1/1/1/1/false"}
 	if fmt.Sprint(got) != fmt.Sprint(wantT) {
 		t.Errorf("talkers (suspended eva out, the filtered one out): %v", got)
 	}
 	// Public mentions: fala's public one, muda's unlisted one, caio's (suspended eva is out).
-	if m.PublicMentions["d"] != 1 || m.PublicMentions["m"] != 3 {
+	if m.PublicMentions["d"] != 2 || m.PublicMentions["m"] != 4 { // + tagi's public one
 		t.Errorf("public mentions: %v", m.PublicMentions)
 	}
 	var links []string

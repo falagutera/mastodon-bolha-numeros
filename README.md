@@ -24,7 +24,8 @@ Ranking people in public is the delicate part, so:
 - Only **discoverable** accounts in good standing appear (not suspended, silenced, moved,
   memorial, bot or unconfirmed). The same goes for accounts from other servers.
 - People who **hide their social graph** stay out of the followers and following tops.
-- **`#nonumeros` in the bio** takes anyone out at the next round.
+- **`#nonumeros` in the bio** takes anyone out at the next round, also from other servers, whose
+  bios are HTML (`#<span>nonumeros</span>`).
 - Content only from **public** posts without a content warning or sensitive media, not
   local-only and not expiring (when the instance has those columns).
 - An **app** only shows up when at least 3 people used it, so a personal app's name doesn't say who posts with it.
@@ -38,14 +39,18 @@ followed, for today, 7 and 30 days; who talks to them the most; the links they s
 
 - **Sign-in** is OAuth with PKCE and the `profile` scope, the same flow as circles: the token is
   only used to ask who the person is and is revoked at once. The session is an HMAC-signed,
-  `__Host-` cookie for 4 hours; the forms (public page, sign out) carry a token tied to it.
+  `__Host-` cookie for 4 hours; the forms (public page, sign out) carry a token tied to it. Signing
+  out clears the cookie; a copy made before keeps working until it expires (there is no server-side
+  session list), and it only ever shows that person's own numbers.
 - **Only the person sees it**, unless they open a **public page** at `/@username`. Off by default.
   The public page only shows the people who talk to them under the main page's rules
   (discoverable, no `#nonumeros`, in good standing) and only counts mentions made in public or
-  unlisted posts, so it never tells who sends the person direct or followers-only messages; only
+  unlisted posts (not local-only ones), so it never tells who sends the person direct,
+  followers-only or local-only messages; only
   links from posts the main page could
   show, and no follower numbers when they hide their social graph. `#nonumeros` in the bio, a
-  limited or moved account, or a renamed one take it down at once, whatever the setting.
+  limited or moved account, or a renamed one take it down within 15 minutes (the public cache),
+  whatever the setting; a slow database never makes it serve older numbers than that.
 - A `/@name` that isn't on the list of open pages is a 404 without a query, so names can't be
   probed through the database. The list is a JSON file (`NUMEROS_PAGES_FILE`) with account ids and
   names only; put it on a persistent volume.

@@ -47,7 +47,12 @@ func openPages(path string) (*pages, error) {
 			continue
 		}
 		p.byID[id] = e
-		p.byName[strings.ToLower(e.User)] = id
+		// Two ids with one name (someone renamed and another took the name):
+		// the one who turned the page on last has it.
+		k := strings.ToLower(e.User)
+		if other, ok := p.byName[k]; !ok || p.byID[other].Since.Before(e.Since) {
+			p.byName[k] = id
+		}
 	}
 	return p, nil
 }
@@ -79,7 +84,7 @@ func (p *pages) set(id int64, user string, on bool, now time.Time) error {
 	defer p.mu.Unlock()
 	old, had := p.byID[id]
 	if had {
-		delete(p.byName, strings.ToLower(old.User))
+		p.dropName(old.User, id)
 		delete(p.byID, id)
 	}
 	if on {
@@ -88,7 +93,7 @@ func (p *pages) set(id int64, user string, on bool, now time.Time) error {
 	}
 	if err := p.save(); err != nil { // keep memory as the file says
 		if on {
-			delete(p.byName, strings.ToLower(user))
+			p.dropName(user, id)
 			delete(p.byID, id)
 		}
 		if had {
@@ -108,11 +113,20 @@ func (p *pages) rename(id int64, user string) error {
 	if !ok || old.User == user {
 		return nil
 	}
-	delete(p.byName, strings.ToLower(old.User))
+	p.dropName(old.User, id)
 	old.User = user
 	p.byID[id] = old
 	p.byName[strings.ToLower(user)] = id
 	return p.save()
+}
+
+// dropName removes a name from the index only if it still points at id: after a
+// rename, someone else may have the name now.
+func (p *pages) dropName(user string, id int64) {
+	k := strings.ToLower(user)
+	if p.byName[k] == id {
+		delete(p.byName, k)
+	}
 }
 
 // save writes the file atomically (the caller holds the lock).

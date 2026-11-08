@@ -57,7 +57,7 @@ var errNoAccount = errors.New("account not found")
 // The account: local, approved and not suspended.
 const meAccountSQL = `SELECT a.id, a.username, COALESCE(a.display_name, ''), COALESCE(a.avatar_file_name, ''), a.created_at,
 	a.hide_collections IS TRUE, COALESCE(st.statuses_count, 0), COALESCE(st.followers_count, 0), COALESCE(st.following_count, 0),
-	(COALESCE(a.note, '') NOT ILIKE '%#nonumeros%' AND a.silenced_at IS NULL AND a.moved_to_account_id IS NULL AND a.memorial IS NOT TRUE)
+	(COALESCE(a.note, '') !~* '#(<[^>]*>)*nonumeros' AND a.silenced_at IS NULL AND a.moved_to_account_id IS NULL AND a.memorial IS NOT TRUE)
 	FROM accounts a LEFT JOIN account_stats st ON st.account_id = a.id
 	WHERE a.id = $1 AND a.domain IS NULL AND a.suspended_at IS NULL
 	AND EXISTS (SELECT 1 FROM users u WHERE u.account_id = a.id AND u.approved AND u.confirmed_at IS NOT NULL AND NOT u.disabled)`
@@ -253,7 +253,11 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 // out; also the mentions that came in public or unlisted posts, per period. A
 // mention notification points at its mentions row, which points at the post.
 func (s *store) talkers(ctx context.Context, tx pgx.Tx, ts []any, first int64, c config) ([]MeTalker, map[string]int64, error) {
-	rows, err := tx.Query(ctx, `WITH n AS (SELECT n.from_account_id AS id, n.created_at AS at, COALESCE(st.visibility <= 1, false) AS pub
+	pubPost := "st.visibility <= 1"
+	if s.localOnly { // a local-only post isn't for the open internet either
+		pubPost += " AND st.local_only IS NOT TRUE"
+	}
+	rows, err := tx.Query(ctx, `WITH n AS (SELECT n.from_account_id AS id, n.created_at AS at, COALESCE(`+pubPost+`, false) AS pub
 			FROM notifications n
 			LEFT JOIN mentions mn ON mn.id = n.activity_id AND n.activity_type = 'Mention'
 			LEFT JOIN statuses st ON st.id = mn.status_id AND st.deleted_at IS NULL
@@ -395,12 +399,16 @@ var errBusy = errors.New("busy")
 
 const (
 	meFresh     = 5 * time.Minute  // /minhaconta
-	publicFresh = 15 * time.Minute // public pages
+	meStale     = time.Hour        // /minhaconta when the database is slow: one's own numbers
+	publicFresh = 15 * time.Minute // public pages, never older
 )
 
 // get returns numbers no older than maxAge, computing them when needed. When a
-// computation fails or waits too long, older numbers are better than none.
-func (c *meCache) get(ctx context.Context, id int64, maxAge time.Duration) (*Me, error) {
+// computation fails or waits too long, numbers up to maxStale old are better
+// than none; past that it is an error. Public pages pass maxStale = maxAge, so
+// an opt-out (#nonumeros, a closed page) is never hidden behind a slow database.
+func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Duration) (*Me, error) {
+	usable := func(m *Me) bool { return m != nil && c.now().Sub(m.At) < maxStale }
 	if m := c.cached(id); m != nil && c.now().Sub(m.At) < maxAge {
 		return m, nil
 	}
@@ -409,7 +417,7 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge time.Duration) (*Me,
 	select {
 	case c.sem <- struct{}{}:
 	case <-wait.C:
-		if m := c.cached(id); m != nil {
+		if m := c.cached(id); usable(m) {
 			return m, nil
 		}
 		return nil, errBusy
@@ -428,7 +436,7 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge time.Duration) (*Me,
 			c.forget(id)
 			return nil, err
 		}
-		if old := c.cached(id); old != nil {
+		if old := c.cached(id); usable(old) {
 			return old, nil
 		}
 		return nil, err

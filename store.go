@@ -16,11 +16,13 @@ import (
 
 // Who may show up on the page. A local account must be discoverable, in good
 // standing (not suspended, silenced, moved, a memorial or a bot) and a real
-// confirmed user; #nonumeros in the bio takes anyone out.
+// confirmed user; #nonumeros in the bio takes anyone out. Remote bios are HTML,
+// where Mastodon writes the tag as #<span>nonumeros</span>: the pattern allows tags
+// between the # and the word.
 const localOK = `a.domain IS NULL AND a.discoverable IS TRUE
 	AND a.suspended_at IS NULL AND a.silenced_at IS NULL AND a.moved_to_account_id IS NULL
 	AND a.memorial IS NOT TRUE AND COALESCE(a.actor_type, 'Person') NOT IN ('Service', 'Application')
-	AND COALESCE(a.note, '') NOT ILIKE '%#nonumeros%'
+	AND COALESCE(a.note, '') !~* '#(<[^>]*>)*nonumeros'
 	AND EXISTS (SELECT 1 FROM users u WHERE u.account_id = a.id
 		AND u.approved AND u.confirmed_at IS NOT NULL AND NOT u.disabled)`
 
@@ -28,7 +30,7 @@ const localOK = `a.domain IS NULL AND a.discoverable IS TRUE
 const remoteOK = `a.domain IS NOT NULL AND a.discoverable IS TRUE
 	AND a.suspended_at IS NULL AND a.silenced_at IS NULL AND a.moved_to_account_id IS NULL
 	AND a.memorial IS NOT TRUE AND COALESCE(a.actor_type, 'Person') NOT IN ('Service', 'Application')
-	AND COALESCE(a.note, '') NOT ILIKE '%#nonumeros%'`
+	AND COALESCE(a.note, '') !~* '#(<[^>]*>)*nonumeros'`
 
 // A post can be shown when it is public, not a boost, has no content warning
 // and no sensitive media.
@@ -42,6 +44,8 @@ type store struct {
 	postExtra string
 	// notifExtra leaves out notifications the person's policy filtered (Mastodon 4.3+).
 	notifExtra string
+	// localOnly: statuses has local_only (bolha.us build), and public pages leave those out.
+	localOnly bool
 }
 
 func openStore(ctx context.Context, c config) (*store, error) {
@@ -76,7 +80,7 @@ func (s *store) schema(ctx context.Context) error {
 	}
 	defer rows.Close()
 	var extra []string
-	s.notifExtra = ""
+	s.notifExtra, s.localOnly = "", false
 	for rows.Next() {
 		var t, c string
 		if err := rows.Scan(&t, &c); err != nil {
@@ -85,6 +89,7 @@ func (s *store) schema(ctx context.Context) error {
 		switch t + "." + c {
 		case "statuses.local_only":
 			extra = append(extra, "s.local_only IS NOT TRUE")
+			s.localOnly = true
 		case "statuses.expires_at":
 			extra = append(extra, "s.expires_at IS NULL")
 		case "notifications.filtered":

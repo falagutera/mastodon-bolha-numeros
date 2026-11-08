@@ -87,7 +87,7 @@ func (s *server) mePage(w http.ResponseWriter, r *http.Request, lang string) {
 		s.renderMe(w, http.StatusOK, v)
 		return
 	}
-	m, err := s.acc.cache.get(r.Context(), sess.ID, meFresh)
+	m, err := s.acc.cache.get(r.Context(), sess.ID, meFresh, meStale)
 	if err != nil {
 		if errors.Is(err, errNoAccount) {
 			clearCookie(w, sessionCookie)
@@ -127,7 +127,7 @@ func (s *server) publicPage(w http.ResponseWriter, r *http.Request, lang, acct s
 		http.NotFound(w, r)
 		return
 	}
-	m, err := s.acc.cache.get(r.Context(), id, publicFresh)
+	m, err := s.acc.cache.get(r.Context(), id, publicFresh, publicFresh)
 	if errors.Is(err, errNoAccount) {
 		http.NotFound(w, r)
 		return
@@ -234,7 +234,7 @@ func (s *server) handlePublic(w http.ResponseWriter, r *http.Request) {
 	on := r.PostForm.Get("on") == "1"
 	if on {
 		// The page needs an account that may have one, and its current name.
-		m, err := s.acc.cache.get(r.Context(), sess.ID, meFresh)
+		m, err := s.acc.cache.get(r.Context(), sess.ID, meFresh, meFresh)
 		if err != nil || !m.CanPublic {
 			s.meError(w, lang, http.StatusForbidden, "cannot")
 			return
