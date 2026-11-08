@@ -79,9 +79,11 @@ followed, for today, 7 and 30 days; who talks to them the most; the links they s
 
 ## Install
 
-numeros is one container (`registry.gutocarvalho.net/images/numeros:<version>`, distroless, runs
-as 65532, listens on `:8080`) that needs a read-only user on the Mastodon database. Everything
-else is optional. Five steps:
+numeros is one container that needs a read-only user on the Mastodon database. Everything else
+is optional. The image is public: `registry.gutocarvalho.net/images/numeros:<tag>`, where the tag
+is a version (`0.5.0`), a version and build (`0.5.0-1325`) or `latest`. It is distroless, runs as
+user 65532, listens on `:8080` and is built for `linux/amd64`; on ARM, build it from this repo
+(`docker build -t numeros .`, it only needs Docker). Five steps:
 
 ### 1. The database user
 
@@ -140,26 +142,66 @@ Set `NUMEROS_CLIENT_ID`, `NUMEROS_CLIENT_SECRET`, `NUMEROS_SESSION_SECRET`, `NUM
 
 ### 4. Run it
 
+numeros has to reach PostgreSQL (or pgBouncer), and PostgreSQL has to let `numeros` in: if
+`pg_hba.conf` lists users or addresses, add a line for it, e.g.
+`host mastodon_production numeros 172.16.0.0/12 scram-sha-256` for Docker's networks. A managed
+database that requires TLS needs `NUMEROS_DB_SSLMODE=require`.
+
+**Docker.** `/data` keeps the last round across restarts (and the public pages list, with sign-in):
+
 ```sh
-docker run -d --name numeros -p 8080:8080 -v numeros-data:/data \
+docker run -d --name numeros --restart unless-stopped -p 8080:8080 -v numeros-data:/data \
   -e NUMEROS_INSTANCE=https://your.instance \
   -e NUMEROS_MEDIA_URL=https://files.your.instance \
   -e NUMEROS_DB_HOST=db.internal -e NUMEROS_DB_PASSWORD=... \
   -e NUMEROS_SNAPSHOT=/data/snapshot.json \
-  registry.gutocarvalho.net/images/numeros:<version>
+  registry.gutocarvalho.net/images/numeros:0.5.1
 ```
 
-Add the variables of steps 2 and 3 as you need them, and put a TLS reverse proxy in front.
-On Kubernetes it is the same container with the secrets in a `Secret`, `/data` on a small PVC
-(a few KB), one replica (the pages file is local) and `/healthz` as the probe; bolha.us's
-manifests are in [open/gcn/k8s-config](https://gitlab.gutocarvalho.net/open/gcn/k8s-config)
-under `apps/numeros`.
+Mastodon's own `docker-compose.yml` keeps PostgreSQL on an internal network with no published
+port: add `--network <project>_internal_network` (`docker network ls` shows its name) and use
+`NUMEROS_DB_HOST=db`, the service name. Or as a service in that same file:
+
+```yaml
+  numeros:
+    image: registry.gutocarvalho.net/images/numeros:0.5.1
+    restart: unless-stopped
+    networks: [internal_network, external_network]  # the database, and the admin API / sign-in
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: [numeros-data:/data]
+    env_file: numeros.env   # NUMEROS_DB_HOST=db, NUMEROS_DB_PASSWORD=..., NUMEROS_INSTANCE=...
+# and under the top-level volumes:  numeros-data: {}
+```
+
+A bind mount instead of a named volume has to belong to the app's user:
+`sudo chown 65532:65532 /srv/numeros`. Add the variables of steps 2 and 3 as you need them, and
+put your TLS reverse proxy in front of `:8080`.
+
+**Kubernetes.** [`docs/kubernetes.yaml`](docs/kubernetes.yaml) has the namespace, a small volume,
+the deployment (non-root, read-only root filesystem, `fsGroup` so it can write the volume, one
+replica: the pages list is a file) and the service. Change the lines marked `CHANGE`, then:
+
+```sh
+kubectl create namespace numeros
+kubectl -n numeros create secret generic numeros-env --from-literal=NUMEROS_DB_PASSWORD='...'
+kubectl apply -f docs/kubernetes.yaml
+kubectl -n numeros logs deploy/numeros   # collected in …, stale: []
+```
+
+The comment on the secret in that file shows the optional keys (admin token, sign-in). Route your
+ingress or gateway to the `numeros` service on port 80. bolha.us's own manifests, with network
+policies and the backup section's RBAC, are in
+[open/gcn/k8s-config](https://gitlab.gutocarvalho.net/open/gcn/k8s-config) under `apps/numeros`.
 
 ### 5. Check it
 
-- `curl -s localhost:8080/healthz` answers `ok`.
+- `curl -s localhost:8080/healthz` answers `ok`, and `/` shows the page.
 - The log shows the first round (`collected in …, stale: []`) within a minute; a block the user can't
-  read says which table, and the page says which part is out of date.
+  read says which table, and the page says which part is out of date. After a restart there may be
+  no new round until the next hour: the last one was kept in `NUMEROS_SNAPSHOT`.
+- `snapshot: … permission denied` in the log: `/data` isn't writable by user 65532 (see step 4).
+- `password authentication failed` or `no pg_hba.conf entry`: step 1's password, or the
+  `pg_hba.conf` line of step 4.
 - With sign-in on, the log says `sign-in on: N public pages`, and `/minhaconta` shows
   "Sign in with …".
 - If `/minhaconta` logs `left out: permission denied`, run step 1 again: the user is missing a
@@ -174,6 +216,8 @@ under `apps/numeros`.
 | `NUMEROS_MEDIA_URL` | `$INSTANCE/system` | where media and avatars are served (`S3_ALIAS_HOST`) |
 | `NUMEROS_DB_HOST` / `_PORT` / `_NAME` / `_USER` | `127.0.0.1` / `5432` / `mastodon_production` / `numeros` | |
 | `NUMEROS_DB_PASSWORD` | | required |
+| `NUMEROS_DB_SSLMODE` | `disable` | `require`, `verify-full`… for a database that wants TLS |
+| `NUMEROS_LISTEN` | `:8080` | address to listen on |
 | `NUMEROS_ADMIN_TOKEN` | | `admin:read` token of an account whose role can only **view the dashboard**: versions, space used, active users. Without it, the database's own version and size |
 | `NUMEROS_SEARCH_URL` / `_USER` / `_PASSWORD` / `_PREFIX` | | search cluster, for the index size (a monitor-only user is enough) |
 | `NUMEROS_TIMEZONE` | `America/Sao_Paulo` | "today" and the times shown |

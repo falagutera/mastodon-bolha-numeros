@@ -1,0 +1,90 @@
+# numeros on Kubernetes: a starting point. Change the lines marked CHANGE, create the
+# namespace and the secret (see below), then:
+#
+#   kubectl apply -f docs/kubernetes.yaml
+#
+# One replica: the collector runs inside the pod (one round per hour) and the public pages list
+# is a file on the volume. Put it behind your ingress or gateway like any web service on :80.
+# The secrets live in a Secret created from the command line, not in this file:
+#
+#   kubectl create namespace numeros
+#   kubectl -n numeros create secret generic numeros-env --from-literal=NUMEROS_DB_PASSWORD='...'
+#
+# Optional keys, added the same way (--from-literal=KEY=value, one per key):
+#   NUMEROS_ADMIN_TOKEN                     versions and space (README, step 2)
+#   NUMEROS_CLIENT_ID, NUMEROS_CLIENT_SECRET,
+#   NUMEROS_SESSION_SECRET                  sign-in, /minhaconta (step 3); the last one from
+#                                           openssl rand -base64 48
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: numeros-data, namespace: numeros }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: 64Mi } # a few KB: the last snapshot and the public pages list
+  # storageClassName: CHANGE if your cluster has no default storage class
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: numeros, namespace: numeros, labels: { app: numeros } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate } # the volume is ReadWriteOnce
+  selector: { matchLabels: { app: numeros } }
+  template:
+    metadata: { labels: { app: numeros } }
+    spec:
+      automountServiceAccountToken: false # set true only with NUMEROS_PLATFORM or the velero module
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532 # lets the app write to the volume
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+      - name: numeros
+        image: registry.gutocarvalho.net/images/numeros:0.5.1 # CHANGE to the version you want
+        env:
+        - { name: NUMEROS_INSTANCE, value: "https://your.instance" }      # CHANGE
+        - { name: NUMEROS_MEDIA_URL, value: "https://files.your.instance" } # CHANGE: S3_ALIAS_HOST, or $INSTANCE/system
+        - { name: NUMEROS_DB_HOST, value: "postgres.mastodon.svc" }       # CHANGE: PostgreSQL or pgBouncer
+        - { name: NUMEROS_DB_PORT, value: "5432" }
+        - { name: NUMEROS_DB_NAME, value: "mastodon_production" }
+        - { name: NUMEROS_TIMEZONE, value: "America/Sao_Paulo" }          # CHANGE
+        - { name: NUMEROS_SNAPSHOT, value: /data/snapshot.json }
+        # With sign-in (step 3 of the README):
+        # - { name: NUMEROS_PUBLIC_URL, value: "https://numeros.your.instance" }
+        # - { name: NUMEROS_PAGES_FILE, value: /data/public.json }
+        # Inside the same cluster as Mastodon, the admin API can skip the public edge:
+        # - { name: NUMEROS_INTERNAL_URL, value: "http://mastodon-web.mastodon.svc:3000" }
+        envFrom:
+        - secretRef: { name: numeros-env }
+        ports:
+        - { name: http, containerPort: 8080 }
+        readinessProbe:
+          httpGet: { path: /healthz, port: http }
+          periodSeconds: 20
+        livenessProbe:
+          httpGet: { path: /healthz, port: http }
+          periodSeconds: 60
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+          limits: { memory: 128Mi }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: { drop: [ALL] }
+        volumeMounts:
+        - { name: data, mountPath: /data }
+      volumes:
+      - name: data
+        persistentVolumeClaim: { claimName: numeros-data }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: numeros, namespace: numeros }
+spec:
+  selector: { app: numeros }
+  ports:
+  - { name: http, port: 80, targetPort: http }

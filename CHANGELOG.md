@@ -3,6 +3,11 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.5.1 — 2026-11-08
+
+- **Runs with a plain Docker volume:** the image now has `/data` owned by its user, so a new volume mounted there can hold the snapshot and the public pages list (before, `docker run -v numeros-data:/data` failed with "permission denied"; Kubernetes was fine thanks to `fsGroup`).
+- **Install guide tested end to end:** the README walks through the database user, the optional admin token and sign-in, and running it with `docker run`, next to Mastodon's own `docker-compose.yml`, or on Kubernetes with the new `docs/kubernetes.yaml`; plus what the usual errors mean. Two variables were missing from the table: `NUMEROS_DB_SSLMODE` and `NUMEROS_LISTEN`.
+
 ## 0.5.0 — 2026-11-08
 
 - **Much more on `/minhaconta`**, only for you, never on the public page:
