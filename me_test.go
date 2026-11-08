@@ -82,7 +82,8 @@ func TestPagesFile(t *testing.T) {
 func testMe() *Me {
 	counts := func(k int64) MeCounts {
 		// FavsGiven 777 and the gap between Posts and PubPosts mark what the public page must not show.
-		return MeCounts{Posts: k, PubPosts: 100 + k, BoostsGot: 2 * k, FavsGiven: 777, FavsGot: 4 * k, PubFavsGot: 200 + k,
+		return MeCounts{Posts: k, PubPosts: 100 + k, BoostsGot: 2 * k, PubBoostsGot: 300 + k, BoostsGiven: 5 * k, PubBoostsGiven: 400 + k,
+			FavsGiven: 777, FavsGot: 4 * k, PubFavsGot: 200 + k,
 			Followers: 3 * k, Following: k, Mentions: k}
 	}
 	return &Me{At: time.Now(), ID: 7, User: "ana", Name: "Ana", Avatar: "https://cache.example/a.png", URL: "https://inst.example/@ana",
@@ -368,12 +369,12 @@ func TestAccountPages(t *testing.T) {
 	}
 	// Counts: posts and favs received only from public posts (PubPosts 120, PubFavsGot 220
 	// for 30 days); favs given are private in Mastodon and stay off.
-	for _, want := range []string{">120<", ">220<"} {
+	for _, want := range []string{">120<", ">220<", ">320<", ">420<"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("public page lacks public count %s", want)
 		}
 	}
-	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf, "favs dados", ">777<", ">80<"} {
+	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf, "favs dados", ">777<", ">80<", ">40<", ">100<"} {
 		if strings.Contains(body, not) {
 			t.Errorf("public page shows %q", not)
 		}
@@ -582,6 +583,13 @@ func TestMeQueries(t *testing.T) {
 		at(time.Minute), at(10*24*time.Hour), at(40*24*time.Hour))
 	exec(`INSERT INTO follows (account_id, target_account_id, created_at) VALUES (10, 1, $1), (2, 1, $2), (1, 2, $1), (11, 1, $3)`,
 		at(time.Minute), at(10*24*time.Hour), at(40*24*time.Hour))
+	// Boosts with their own visibility: ana's followers-only boost; bia boosts
+	// ana's link once publicly and once for followers only.
+	post(1, time.Minute, "reblog_of_id = 998, visibility = 2")
+	for _, vis := range []int{0, 2} {
+		b := post(2, time.Minute, fmt.Sprintf("reblog_of_id = %d, visibility = %d", link, vis))
+		exec(`INSERT INTO notifications (account_id, from_account_id, type, created_at, activity_type, activity_id) VALUES (1, 2, 'reblog', $1, 'Status', $2)`, at(time.Minute), b)
+	}
 	// A followers-only post of ana; fala favs it and also favs a public one.
 	priv := post(1, time.Minute, "visibility = 2")
 	for _, sid := range []int64{priv, link} {
@@ -617,9 +625,9 @@ func TestMeQueries(t *testing.T) {
 		t.Errorf("account: %+v", m)
 	}
 	want := map[string]MeCounts{
-		"d": {Posts: 3, PubPosts: 2, BoostsGiven: 1, BoostsGot: 1, FavsGiven: 1, FavsGot: 3, PubFavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
-		"w": {Posts: 4, PubPosts: 3, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 1, FavsGot: 3, PubFavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
-		"m": {Posts: 5, PubPosts: 4, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 2, FavsGot: 3, PubFavsGot: 1, Followers: 2, Following: 1, Mentions: 8},
+		"d": {Posts: 3, PubPosts: 2, BoostsGiven: 2, PubBoostsGiven: 1, BoostsGot: 3, PubBoostsGot: 1, FavsGiven: 1, FavsGot: 3, PubFavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
+		"w": {Posts: 4, PubPosts: 3, BoostsGiven: 2, PubBoostsGiven: 1, BoostsGot: 4, PubBoostsGot: 1, FavsGiven: 1, FavsGot: 3, PubFavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
+		"m": {Posts: 5, PubPosts: 4, BoostsGiven: 2, PubBoostsGiven: 1, BoostsGot: 4, PubBoostsGot: 1, FavsGiven: 2, FavsGot: 3, PubFavsGot: 1, Followers: 2, Following: 1, Mentions: 8},
 	}
 	for _, p := range periods {
 		if m.Periods[p] != want[p] {

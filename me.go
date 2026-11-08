@@ -22,7 +22,8 @@ type MeCounts struct {
 	Posts, BoostsGiven, BoostsGot, FavsGiven, FavsGot, Followers, Following, Mentions int64
 	// For the public page: only posts others could see without following
 	// (public or unlisted, not local-only), and favs received on those.
-	PubPosts, PubFavsGot int64
+	// Boosts too: a boost has its own visibility (followers-only, local-only).
+	PubPosts, PubFavsGot, PubBoostsGiven, PubBoostsGot int64
 }
 
 // MeTalker: someone who mentioned the account, with the count per period.
@@ -188,10 +189,10 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 		}
 		// Own posts and boosts (status ids carry their time).
 		err = scan(tx.QueryRow(ctx, `SELECT `+filters("id", " AND reblog_of_id IS NULL")+`, `+filters("id", " AND reblog_of_id IS NOT NULL")+`,
-			`+filters("id", " AND reblog_of_id IS NULL"+anyone)+`
+			`+filters("id", " AND reblog_of_id IS NULL"+anyone)+`, `+filters("id", " AND reblog_of_id IS NOT NULL"+anyone)+`
 			FROM statuses WHERE account_id = $1 AND id >= $4 AND deleted_at IS NULL AND visibility < 3`, sf...),
 			func(p string) *int64 { return &cnt[p].Posts }, func(p string) *int64 { return &cnt[p].BoostsGiven },
-			func(p string) *int64 { return &cnt[p].PubPosts })
+			func(p string) *int64 { return &cnt[p].PubPosts }, func(p string) *int64 { return &cnt[p].PubBoostsGiven })
 		if err != nil {
 			return fmt.Errorf("posts: %w", err)
 		}
@@ -233,6 +234,15 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 			func(p string) *int64 { return &cnt[p].PubFavsGot })
 		if err != nil {
 			return fmt.Errorf("public favourites: %w", err)
+		}
+		// Boosts received that anyone may see: the notification points at the boost itself.
+		err = scan(tx.QueryRow(ctx, `SELECT `+filters("n.created_at", "")+` FROM notifications n
+			JOIN statuses st ON st.id = n.activity_id AND n.activity_type = 'Status'
+			WHERE n.account_id = $1 AND n.id >= $5 AND n.created_at >= $4`+s.notifExtra+` AND n.type = 'reblog'
+			AND st.deleted_at IS NULL`+strings.ReplaceAll(anyone, " AND ", " AND st."), append(ts, first["notifications"])...),
+			func(p string) *int64 { return &cnt[p].PubBoostsGot })
+		if err != nil {
+			return fmt.Errorf("public boosts: %w", err)
 		}
 		err = scan(tx.QueryRow(ctx, `SELECT `+filters("created_at", "")+` FROM favourites
 			WHERE account_id = $1 AND id >= $5 AND created_at >= $4`, append(ts, first["favourites"])...),

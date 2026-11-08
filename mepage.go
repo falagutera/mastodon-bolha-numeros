@@ -168,9 +168,9 @@ func (s *server) fill(v *meView, m *Me, public bool, now time.Time) {
 	for _, p := range periods {
 		v.Periods = append(v.Periods, kv{p, t["p_"+p]})
 	}
-	// The public page only counts what anyone could see on the instance: posts
-	// and favs on public or unlisted posts, mentions made in those. Favs given
-	// stay off it: Mastodon keeps them private.
+	// The public page only counts what anyone could see on the instance: public
+	// or unlisted posts and boosts (not local-only), the favs and boosts those got,
+	// mentions made in them. Favs given stay off it: Mastodon keeps them private.
 	type metric struct {
 		key     string
 		own     func(MeCounts) int64
@@ -180,10 +180,10 @@ func (s *server) fill(v *meView, m *Me, public bool, now time.Time) {
 	}
 	for _, mt := range []metric{
 		{"c_posts", func(c MeCounts) int64 { return c.Posts }, func(c MeCounts) int64 { return c.PubPosts }, false, false},
-		{"c_boosts_got", func(c MeCounts) int64 { return c.BoostsGot }, func(c MeCounts) int64 { return c.BoostsGot }, false, false},
+		{"c_boosts_got", func(c MeCounts) int64 { return c.BoostsGot }, func(c MeCounts) int64 { return c.PubBoostsGot }, false, false},
 		{"c_favs_got", func(c MeCounts) int64 { return c.FavsGot }, func(c MeCounts) int64 { return c.PubFavsGot }, false, false},
 		{"c_mentions", func(c MeCounts) int64 { return c.Mentions }, func(MeCounts) int64 { return 0 }, false, true},
-		{"c_boosts_given", func(c MeCounts) int64 { return c.BoostsGiven }, func(c MeCounts) int64 { return c.BoostsGiven }, false, false},
+		{"c_boosts_given", func(c MeCounts) int64 { return c.BoostsGiven }, func(c MeCounts) int64 { return c.PubBoostsGiven }, false, false},
 		{"c_favs_given", func(c MeCounts) int64 { return c.FavsGiven }, nil, false, false},
 		{"c_followers", func(c MeCounts) int64 { return c.Followers }, func(c MeCounts) int64 { return c.Followers }, true, false},
 		{"c_following", func(c MeCounts) int64 { return c.Following }, func(c MeCounts) int64 { return c.Following }, true, false},
