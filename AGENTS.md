@@ -43,7 +43,7 @@ the account pages is only tested by the database run.
 Test variables: `NUMEROS_TEST_DB_HOST`, `_PORT` (5432), `_NAME` (numeros_test), `_USER` (postgres),
 `_PASSWORD` (pg), `NUMEROS_TEST_APP_PASSWORD` (the `numeros` role, for `TestReadsAsTheAppUser`).
 
-To look at the rendered own page: `mkdir -p /tmp/numeros-dump && NUMEROS_DUMP=/tmp/numeros-dump go test -run TestAccountPages ./...`
+To look at the rendered own page: `D=$(mktemp -d) && NUMEROS_DUMP=$D go test -run TestAccountPages ./... && echo $D`
 (a **directory**: it writes `me.html` and `numeros.css` there).
 
 ## Map
@@ -123,7 +123,10 @@ Privacy is the product. A change that weakens one of these is a bug, even if a t
 
 ## Releasing
 
-- `VERSION` holds `X.Y.Z`; CI adds the build number (`X.Y.Z-BUILD`). Bump it for user-visible changes.
+- `VERSION` holds `X.Y.Z`; CI adds the build number (`X.Y.Z-BUILD`). Bump: a fix or small visual
+  tweak = patch; a new number, card or option = minor; anything that needs installs to re-run
+  `docs/database.sql` or set a new variable = minor, with that line in bold at the top of the entry;
+  breaking = major.
   Docs- or tests-only changes don't bump it; unreleased work goes under `## Unreleased` in
   `CHANGELOG.md` (the release notes page skips that section).
 - Every version needs its `CHANGELOG.md` entry (`TestChangelogHasVersion`); it is also the
