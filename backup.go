@@ -185,19 +185,18 @@ func velero(ctx context.Context, k *kubeAPI, ns, schedule, appNS string) (*Backu
 	}
 	sort.Slice(list.Items, func(i, j int) bool { return list.Items[i].Metadata.Created.After(list.Items[j].Metadata.Created) })
 	b.Count = int64(len(list.Items))
-	last := list.Items[0]
-	b.LastAt = last.Metadata.Created
-	if last.Status.Start != nil {
-		b.LastAt = *last.Status.Start
-	}
-	b.LastOK = last.Status.Phase == "Completed"
-	if last.Status.Start != nil && last.Status.End != nil {
-		b.LastTook = last.Status.End.Sub(*last.Status.Start)
-	}
-	// Sizes from the newest backup that finished.
+	// "Last" and the sizes come from the newest backup that completed: the page
+	// shows the instance, not how the backup tooling is doing (that is Kuma's job).
 	for _, it := range list.Items {
 		if it.Status.Phase != "Completed" {
 			continue
+		}
+		b.LastAt, b.LastOK = it.Metadata.Created, true
+		if it.Status.Start != nil {
+			b.LastAt = *it.Status.Start
+		}
+		if it.Status.Start != nil && it.Status.End != nil {
+			b.LastTook = it.Status.End.Sub(*it.Status.Start)
 		}
 		b.Items = it.Status.Progress.Items
 		var pvbs struct {
@@ -386,13 +385,13 @@ func (d *databasusAPI) backups(ctx context.Context, name string) (*Backup, error
 		b.Count++
 		b.Stored += int64(x.Size * mb)
 	}
-	// "Last" is the newest backup with an outcome: one running has none yet, and
-	// one someone canceled says nothing about how backups are going.
+	// "Last" is the newest backup that completed (failures are for Kuma, not
+	// for this page).
 	for _, last := range all {
-		if last.Status != "COMPLETED" && last.Status != "FAILED" {
+		if last.Status != "COMPLETED" {
 			continue
 		}
-		b.LastAt, b.LastOK, b.LastTook = last.Created, last.Status == "COMPLETED", time.Duration(last.Duration)*time.Millisecond
+		b.LastAt, b.LastOK, b.LastTook = last.Created, true, time.Duration(last.Duration)*time.Millisecond
 		b.LastBytes, b.DBBytes = int64(last.Size*mb), int64(last.Raw*mb)
 		break
 	}

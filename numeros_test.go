@@ -66,8 +66,8 @@ func TestHelpers(t *testing.T) {
 		t.Errorf("nextRound on the minute: %v", got)
 	}
 	loc, _ := time.LoadLocation("America/Sao_Paulo")
-	if got := periodStart("d", time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC), loc); !got.Equal(time.Date(2025, 12, 31, 0, 0, 0, 0, loc)) {
-		t.Errorf("today starts at local midnight: %v", got)
+	if got := periodStart("d", time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC), loc); !got.Equal(time.Date(2025, 12, 31, 2, 0, 0, 0, time.UTC)) {
+		t.Errorf("the day is the last 24 hours: %v", got)
 	}
 	if snowflake(time.UnixMilli(1)) != 1<<16 {
 		t.Error("snowflake")

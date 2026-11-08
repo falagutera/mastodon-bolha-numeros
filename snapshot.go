@@ -48,7 +48,7 @@ type Windows struct {
 	Week, Month, HalfYear, Year int64
 }
 
-// Ranking is one "top 12" card, per period: today, 7 days, 30 days.
+// Ranking is one "top 12" card, per period: 24 hours, 7 days, 30 days.
 type Ranking struct {
 	Key     string              `json:"key"`
 	Periods map[string][]Person `json:"periods"` // "d", "w", "m"
@@ -101,12 +101,13 @@ type Item struct {
 
 var periods = []string{"d", "w", "m"}
 
-// periodStart is when a period begins: today is since midnight in loc.
-func periodStart(p string, now time.Time, loc *time.Location) time.Time {
+// periodStart is when a period begins: the last 24 hours, 7 days or 30 days.
+// A rolling day, not "since midnight": right after midnight that one was
+// nearly empty and looked like missing data.
+func periodStart(p string, now time.Time, _ *time.Location) time.Time {
 	switch p {
 	case "d":
-		l := now.In(loc)
-		return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, loc)
+		return now.Add(-24 * time.Hour)
 	case "w":
 		return now.Add(-7 * 24 * time.Hour)
 	default:

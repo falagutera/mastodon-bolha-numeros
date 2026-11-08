@@ -3,6 +3,11 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.4.1 — 2026-11-08
+
+- **"24 horas" instead of "Hoje":** the shortest period is now the last 24 hours, on the main page and on `/minhaconta`. "Today since midnight" was nearly empty right after midnight and looked like missing data.
+- **Backup cards show the last backup that completed.** A failed or partial run no longer shows as "failed" here: the page is about the instance, and backup failures are for the monitoring.
+
 ## 0.4.0 — 2026-11-08
 
 - **Your numbers (`/minhaconta`):** sign in with the instance and see your own numbers for today, 7 and 30 days: posts, boosts and favs received and given, mentions, followers gained, people you started following, who talks to you the most (local and remote) and the links you shared. Computed on the visit from your own rows and kept for 5 minutes.
