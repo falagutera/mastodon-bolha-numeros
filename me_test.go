@@ -81,7 +81,9 @@ func TestPagesFile(t *testing.T) {
 
 func testMe() *Me {
 	counts := func(k int64) MeCounts {
-		return MeCounts{Posts: k, BoostsGot: 2 * k, Followers: 3 * k, Following: k, Mentions: k}
+		// FavsGiven 777 and the gap between Posts and PubPosts mark what the public page must not show.
+		return MeCounts{Posts: k, PubPosts: 100 + k, BoostsGot: 2 * k, FavsGiven: 777, FavsGot: 4 * k, PubFavsGot: 200 + k,
+			Followers: 3 * k, Following: k, Mentions: k}
 	}
 	return &Me{At: time.Now(), ID: 7, User: "ana", Name: "Ana", Avatar: "https://cache.example/a.png", URL: "https://inst.example/@ana",
 		Since: time.Date(2022, 5, 1, 0, 0, 0, 0, time.UTC), Posts: 900, Followers: 321, Following: 12, CanPublic: true,
@@ -177,6 +179,18 @@ func TestMeCache(t *testing.T) {
 	fail = errNoAccount
 	if _, err := c.get(ctx, 7, meFresh, meStale); err != errNoAccount || c.cached(7) != nil {
 		t.Errorf("a gone account is forgotten: %v", err)
+	}
+	before := calls
+	for i := 0; i < 50; i++ { // a stale /@name hit over and over
+		c.get(ctx, 7, publicFresh, publicFresh)
+	}
+	if calls != before {
+		t.Errorf("a gone account was looked up %d more times", calls-before)
+	}
+	now = now.Add(publicFresh + time.Minute)
+	fail = nil
+	if m, err := c.get(ctx, 7, publicFresh, publicFresh); err != nil || m == nil {
+		t.Errorf("an account that came back (unsuspended) stays gone: %v", err)
 	}
 }
 
@@ -311,7 +325,7 @@ func TestAccountPages(t *testing.T) {
 
 	// Signed in: own numbers, everyone who talks, every link.
 	res, body = do("GET", "/minhaconta", sess, nil)
-	for _, want := range []string{"Ana", "@ana", "Segredo", "SoDM", "SoSeguidores", "Abrir página pública", "321"} {
+	for _, want := range []string{"Ana", "@ana", "Segredo", "SoDM", "SoSeguidores", "Abrir página pública", "321", "favs dados", ">777<"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("own page lacks %q", want)
 		}
@@ -352,7 +366,14 @@ func TestAccountPages(t *testing.T) {
 			t.Errorf("public page lacks %q", want)
 		}
 	}
-	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf} {
+	// Counts: posts and favs received only from public posts (PubPosts 120, PubFavsGot 220
+	// for 30 days); favs given are private in Mastodon and stay off.
+	for _, want := range []string{">120<", ">220<"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("public page lacks public count %s", want)
+		}
+	}
+	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf, "favs dados", ">777<", ">80<"} {
 		if strings.Contains(body, not) {
 			t.Errorf("public page shows %q", not)
 		}
@@ -561,6 +582,15 @@ func TestMeQueries(t *testing.T) {
 		at(time.Minute), at(10*24*time.Hour), at(40*24*time.Hour))
 	exec(`INSERT INTO follows (account_id, target_account_id, created_at) VALUES (10, 1, $1), (2, 1, $2), (1, 2, $1), (11, 1, $3)`,
 		at(time.Minute), at(10*24*time.Hour), at(40*24*time.Hour))
+	// A followers-only post of ana; fala favs it and also favs a public one.
+	priv := post(1, time.Minute, "visibility = 2")
+	for _, sid := range []int64{priv, link} {
+		var fid int64
+		if err := db.pool.QueryRow(ctx, `INSERT INTO favourites (account_id, status_id, created_at) VALUES (10, $1, $2) RETURNING id`, sid, at(time.Minute)).Scan(&fid); err != nil {
+			t.Fatal(err)
+		}
+		exec(`INSERT INTO notifications (account_id, from_account_id, type, created_at, activity_type, activity_id) VALUES (1, 10, 'favourite', $1, 'Favourite', $2)`, at(time.Minute), fid)
+	}
 
 	if err := db.schema(ctx); err != nil {
 		t.Fatal(err)
@@ -587,9 +617,9 @@ func TestMeQueries(t *testing.T) {
 		t.Errorf("account: %+v", m)
 	}
 	want := map[string]MeCounts{
-		"d": {Posts: 2, BoostsGiven: 1, BoostsGot: 1, FavsGiven: 1, FavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
-		"w": {Posts: 3, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 1, FavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
-		"m": {Posts: 4, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 2, FavsGot: 1, Followers: 2, Following: 1, Mentions: 8},
+		"d": {Posts: 3, PubPosts: 2, BoostsGiven: 1, BoostsGot: 1, FavsGiven: 1, FavsGot: 3, PubFavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
+		"w": {Posts: 4, PubPosts: 3, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 1, FavsGot: 3, PubFavsGot: 1, Followers: 1, Following: 1, Mentions: 5},
+		"m": {Posts: 5, PubPosts: 4, BoostsGiven: 1, BoostsGot: 2, FavsGiven: 2, FavsGot: 3, PubFavsGot: 1, Followers: 2, Following: 1, Mentions: 8},
 	}
 	for _, p := range periods {
 		if m.Periods[p] != want[p] {

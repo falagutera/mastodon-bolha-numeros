@@ -20,6 +20,9 @@ import (
 // MeCounts: what one account did and got in one period.
 type MeCounts struct {
 	Posts, BoostsGiven, BoostsGot, FavsGiven, FavsGot, Followers, Following, Mentions int64
+	// For the public page: only posts others could see without following
+	// (public or unlisted, not local-only), and favs received on those.
+	PubPosts, PubFavsGot int64
 }
 
 // MeTalker: someone who mentioned the account, with the count per period.
@@ -178,10 +181,17 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 			ts = append(ts, since[p])
 		}
 
+		// What anyone may see: public or unlisted, not local-only (one of our constants).
+		anyone := " AND visibility <= 1"
+		if s.localOnly {
+			anyone += " AND local_only IS NOT TRUE"
+		}
 		// Own posts and boosts (status ids carry their time).
-		err = scan(tx.QueryRow(ctx, `SELECT `+filters("id", " AND reblog_of_id IS NULL")+`, `+filters("id", " AND reblog_of_id IS NOT NULL")+`
+		err = scan(tx.QueryRow(ctx, `SELECT `+filters("id", " AND reblog_of_id IS NULL")+`, `+filters("id", " AND reblog_of_id IS NOT NULL")+`,
+			`+filters("id", " AND reblog_of_id IS NULL"+anyone)+`
 			FROM statuses WHERE account_id = $1 AND id >= $4 AND deleted_at IS NULL AND visibility < 3`, sf...),
-			func(p string) *int64 { return &cnt[p].Posts }, func(p string) *int64 { return &cnt[p].BoostsGiven })
+			func(p string) *int64 { return &cnt[p].Posts }, func(p string) *int64 { return &cnt[p].BoostsGiven },
+			func(p string) *int64 { return &cnt[p].PubPosts })
 		if err != nil {
 			return fmt.Errorf("posts: %w", err)
 		}
@@ -213,6 +223,16 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 		rows.Close()
 		if err := rows.Err(); err != nil {
 			return err
+		}
+		// Favs received on posts anyone may see: notification -> favourite -> post.
+		err = scan(tx.QueryRow(ctx, `SELECT `+filters("n.created_at", "")+` FROM notifications n
+			JOIN favourites f ON f.id = n.activity_id AND n.activity_type = 'Favourite'
+			JOIN statuses st ON st.id = f.status_id
+			WHERE n.account_id = $1 AND n.id >= $5 AND n.created_at >= $4`+s.notifExtra+` AND n.type = 'favourite'
+			AND st.deleted_at IS NULL`+strings.ReplaceAll(anyone, " AND ", " AND st."), append(ts, first["notifications"])...),
+			func(p string) *int64 { return &cnt[p].PubFavsGot })
+		if err != nil {
+			return fmt.Errorf("public favourites: %w", err)
 		}
 		err = scan(tx.QueryRow(ctx, `SELECT `+filters("created_at", "")+` FROM favourites
 			WHERE account_id = $1 AND id >= $5 AND created_at >= $4`, append(ts, first["favourites"])...),
@@ -387,12 +407,13 @@ type meCache struct {
 	now     func() time.Time
 	sem     chan struct{}
 
-	mu sync.Mutex
-	m  map[int64]*Me
+	mu   sync.Mutex
+	m    map[int64]*Me
+	gone map[int64]time.Time // accounts that weren't found, so a stale public URL doesn't query each visit
 }
 
 func newMeCache(compute func(ctx context.Context, id int64) (*Me, error)) *meCache {
-	return &meCache{compute: compute, now: time.Now, sem: make(chan struct{}, 1), m: map[int64]*Me{}}
+	return &meCache{compute: compute, now: time.Now, sem: make(chan struct{}, 1), m: map[int64]*Me{}, gone: map[int64]time.Time{}}
 }
 
 var errBusy = errors.New("busy")
@@ -409,6 +430,9 @@ const (
 // an opt-out (#nonumeros, a closed page) is never hidden behind a slow database.
 func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Duration) (*Me, error) {
 	usable := func(m *Me) bool { return m != nil && c.now().Sub(m.At) < maxStale }
+	if c.isGone(id, maxAge) {
+		return nil, errNoAccount
+	}
 	if m := c.cached(id); m != nil && c.now().Sub(m.At) < maxAge {
 		return m, nil
 	}
@@ -434,6 +458,9 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Durat
 	if err != nil {
 		if errors.Is(err, errNoAccount) {
 			c.forget(id)
+			c.mu.Lock()
+			c.gone[id] = c.now()
+			c.mu.Unlock()
 			return nil, err
 		}
 		if old := c.cached(id); usable(old) {
@@ -443,15 +470,30 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Durat
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(c.m) > 5000 { // drop what's past any use
+	if len(c.m)+len(c.gone) > 5000 { // drop what's past any use
 		for k, v := range c.m {
-			if c.now().Sub(v.At) > publicFresh {
+			if c.now().Sub(v.At) > meStale {
 				delete(c.m, k)
 			}
 		}
+		for k, at := range c.gone {
+			if c.now().Sub(at) > meStale {
+				delete(c.gone, k)
+			}
+		}
 	}
+	delete(c.gone, id)
 	c.m[id] = m
 	return m, nil
+}
+
+// isGone: the account wasn't found less than maxAge ago (it may come back, e.g.
+// unsuspended, so the answer is kept no longer than numbers would be).
+func (c *meCache) isGone(id int64, maxAge time.Duration) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	at, ok := c.gone[id]
+	return ok && c.now().Sub(at) < maxAge
 }
 
 func (c *meCache) cached(id int64) *Me {

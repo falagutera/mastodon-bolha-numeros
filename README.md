@@ -44,7 +44,9 @@ followed, for today, 7 and 30 days; who talks to them the most; the links they s
   session list), and it only ever shows that person's own numbers.
 - **Only the person sees it**, unless they open a **public page** at `/@username`. Off by default.
   The public page only shows the people who talk to them under the main page's rules
-  (discoverable, no `#nonumeros`, in good standing) and only counts mentions made in public or
+  (discoverable, no `#nonumeros`, in good standing); its counts only cover what anyone can already
+  see on the instance (public and unlisted posts, not local-only, and the favs they got; favs the
+  person gives stay off, Mastodon keeps them private); it only counts mentions made in public or
   unlisted posts (not local-only ones), so it never tells who sends the person direct,
   followers-only or local-only messages; only
   links from posts the main page could

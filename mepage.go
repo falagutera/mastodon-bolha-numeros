@@ -168,29 +168,37 @@ func (s *server) fill(v *meView, m *Me, public bool, now time.Time) {
 	for _, p := range periods {
 		v.Periods = append(v.Periods, kv{p, t["p_"+p]})
 	}
+	// The public page only counts what anyone could see on the instance: posts
+	// and favs on public or unlisted posts, mentions made in those. Favs given
+	// stay off it: Mastodon keeps them private.
 	type metric struct {
-		key   string
-		value func(MeCounts) int64
-		graph bool
+		key     string
+		own     func(MeCounts) int64
+		pub     func(MeCounts) int64 // nil: not on the public page
+		graph   bool
+		pubMent bool // public value comes from PublicMentions
 	}
 	for _, mt := range []metric{
-		{"c_posts", func(c MeCounts) int64 { return c.Posts }, false},
-		{"c_boosts_got", func(c MeCounts) int64 { return c.BoostsGot }, false},
-		{"c_favs_got", func(c MeCounts) int64 { return c.FavsGot }, false},
-		{"c_mentions", func(c MeCounts) int64 { return c.Mentions }, false}, // public: replaced below
-		{"c_boosts_given", func(c MeCounts) int64 { return c.BoostsGiven }, false},
-		{"c_favs_given", func(c MeCounts) int64 { return c.FavsGiven }, false},
-		{"c_followers", func(c MeCounts) int64 { return c.Followers }, true},
-		{"c_following", func(c MeCounts) int64 { return c.Following }, true},
+		{"c_posts", func(c MeCounts) int64 { return c.Posts }, func(c MeCounts) int64 { return c.PubPosts }, false, false},
+		{"c_boosts_got", func(c MeCounts) int64 { return c.BoostsGot }, func(c MeCounts) int64 { return c.BoostsGot }, false, false},
+		{"c_favs_got", func(c MeCounts) int64 { return c.FavsGot }, func(c MeCounts) int64 { return c.PubFavsGot }, false, false},
+		{"c_mentions", func(c MeCounts) int64 { return c.Mentions }, func(MeCounts) int64 { return 0 }, false, true},
+		{"c_boosts_given", func(c MeCounts) int64 { return c.BoostsGiven }, func(c MeCounts) int64 { return c.BoostsGiven }, false, false},
+		{"c_favs_given", func(c MeCounts) int64 { return c.FavsGiven }, nil, false, false},
+		{"c_followers", func(c MeCounts) int64 { return c.Followers }, func(c MeCounts) int64 { return c.Followers }, true, false},
+		{"c_following", func(c MeCounts) int64 { return c.Following }, func(c MeCounts) int64 { return c.Following }, true, false},
 	} {
-		if mt.graph && !graph {
+		if (mt.graph && !graph) || (public && mt.pub == nil) {
 			continue
 		}
 		tl := meTile{Label: t[mt.key]}
 		for _, p := range periods {
-			val := mt.value(m.Periods[p])
-			if public && mt.key == "c_mentions" { // not the ones in direct or followers-only posts
+			val := mt.own(m.Periods[p])
+			switch {
+			case public && mt.pubMent:
 				val = m.PublicMentions[p]
+			case public:
+				val = mt.pub(m.Periods[p])
 			}
 			tl.Values = append(tl.Values, kv{p, n(val)})
 		}
