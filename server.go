@@ -16,7 +16,7 @@ import (
 	"gitlab.gutocarvalho.net/open/bolha/numeros/internal/relnotes"
 )
 
-//go:embed templates/*.html templates/numeros.css
+//go:embed templates/*.html templates/numeros.css assets/style.css
 var templateFS embed.FS
 
 type server struct {
@@ -44,10 +44,16 @@ func newServer(cfg config, col *collector) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	css, err := templateFS.ReadFile("templates/numeros.css")
+	// /numeros.css = the look (assets/style.css, a copy from open/gcn/ui) + numeros's own rules
+	ui, err := templateFS.ReadFile("assets/style.css")
 	if err != nil {
 		return nil, err
 	}
+	own, err := templateFS.ReadFile("templates/numeros.css")
+	if err != nil {
+		return nil, err
+	}
+	css := append(append(ui, '\n'), own...)
 	img := []string{"'self'"}
 	for _, raw := range []string{cfg.media, cfg.instance} {
 		if u, err := url.Parse(raw); err == nil && u.Host != "" {

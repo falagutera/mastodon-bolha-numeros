@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.5.2 — 2026-11-08
+
+- The look now comes from `open/gcn/ui` (`assets/style.css`, a synced copy, and `VISUAL.md`): `/numeros.css` serves it followed by numeros's own rules (`templates/numeros.css`). The page looks the same; numeros was the reference the shared look came from.
+
 ## 0.5.1 — 2026-11-08
 
 - **Runs with a plain Docker volume:** the image now has `/data` owned by its user, so a new volume mounted there can hold the snapshot and the public pages list (before, `docker run -v numeros-data:/data` failed with "permission denied"; Kubernetes was fine thanks to `fsGroup`).

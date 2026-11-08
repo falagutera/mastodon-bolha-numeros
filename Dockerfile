@@ -6,6 +6,7 @@ RUN go mod download
 COPY *.go CHANGELOG.md ./
 COPY internal ./internal
 COPY templates ./templates
+COPY assets ./assets
 ARG BUILD=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.build=${BUILD}" -o /numeros . && mkdir -p /out/data
 
