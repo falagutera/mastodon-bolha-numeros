@@ -177,7 +177,7 @@ func (s *server) fill(v *meView, m *Me, public bool, now time.Time) {
 		{"c_posts", func(c MeCounts) int64 { return c.Posts }, false},
 		{"c_boosts_got", func(c MeCounts) int64 { return c.BoostsGot }, false},
 		{"c_favs_got", func(c MeCounts) int64 { return c.FavsGot }, false},
-		{"c_mentions", func(c MeCounts) int64 { return c.Mentions }, false},
+		{"c_mentions", func(c MeCounts) int64 { return c.Mentions }, false}, // public: replaced below
 		{"c_boosts_given", func(c MeCounts) int64 { return c.BoostsGiven }, false},
 		{"c_favs_given", func(c MeCounts) int64 { return c.FavsGiven }, false},
 		{"c_followers", func(c MeCounts) int64 { return c.Followers }, true},
@@ -188,7 +188,11 @@ func (s *server) fill(v *meView, m *Me, public bool, now time.Time) {
 		}
 		tl := meTile{Label: t[mt.key]}
 		for _, p := range periods {
-			tl.Values = append(tl.Values, kv{p, n(mt.value(m.Periods[p]))})
+			val := mt.value(m.Periods[p])
+			if public && mt.key == "c_mentions" { // not the ones in direct or followers-only posts
+				val = m.PublicMentions[p]
+			}
+			tl.Values = append(tl.Values, kv{p, n(val)})
 		}
 		v.Counts = append(v.Counts, tl)
 	}
@@ -201,7 +205,7 @@ func (s *server) fill(v *meView, m *Me, public bool, now time.Time) {
 		top := topTalkers(m.Talkers, p, public, 10)
 		for i, tk := range top {
 			rp.Rows = append(rp.Rows, rankRow{N: i + 1, Name: tk.Name, Acct: "@" + tk.Acct, URL: tk.URL, Avatar: tk.Avatar,
-				Value: n(tk.Counts[p]), Bar: pct(tk.Counts[p], top[0].Counts[p])})
+				Value: n(tk.count(p, public)), Bar: pct(tk.count(p, public), top[0].count(p, public))})
 		}
 		v.Talkers = append(v.Talkers, rp)
 	}

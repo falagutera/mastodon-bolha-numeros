@@ -26,6 +26,9 @@ type MeCounts struct {
 type MeTalker struct {
 	Person
 	Counts map[string]int64 `json:"counts"`
+	// Public: only mentions in public or unlisted posts. The public page uses
+	// these, so it never tells who sends the person direct or followers-only messages.
+	Public map[string]int64 `json:"public"`
 	Shown  bool             `json:"shown"` // passes the main page's rules, so it may show on the public page
 }
 
@@ -44,6 +47,7 @@ type Me struct {
 	HidesGraph                  bool  // hides who follows them: the public page leaves follower numbers out
 	CanPublic                   bool  // may have a public page now (no #nonumeros, not limited or moved)
 	Periods                     map[string]MeCounts
+	PublicMentions              map[string]int64 // mentions in public or unlisted posts, for the public page
 	Talkers                     []MeTalker
 	Links                       []MeLink
 }
@@ -231,7 +235,7 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 			m.Periods[p] = *cnt[p]
 		}
 
-		if m.Talkers, err = s.talkers(ctx, tx, ts, first["notifications"], c); err != nil {
+		if m.Talkers, m.PublicMentions, err = s.talkers(ctx, tx, ts, first["notifications"], c); err != nil {
 			return fmt.Errorf("talkers: %w", err)
 		}
 		if m.Links, err = s.myLinks(ctx, tx, id, snowflake(since["m"])); err != nil {
@@ -245,33 +249,43 @@ func (s *store) me(ctx context.Context, id int64, now time.Time, c config, b *bo
 	return m, nil
 }
 
-// talkers: who mentioned the account, local or not, suspended accounts left out.
-func (s *store) talkers(ctx context.Context, tx pgx.Tx, ts []any, first int64, c config) ([]MeTalker, error) {
-	rows, err := tx.Query(ctx, `WITH m AS (SELECT from_account_id AS id,
-			count(*) FILTER (WHERE created_at >= $2) AS d, count(*) FILTER (WHERE created_at >= $3) AS w, count(*) AS m
-			FROM notifications WHERE account_id = $1 AND id >= $5 AND created_at >= $4`+s.notifExtra+` AND type = 'mention'
-			GROUP BY 1)
+// talkers: who mentioned the account, local or not, suspended accounts left
+// out; also the mentions that came in public or unlisted posts, per period. A
+// mention notification points at its mentions row, which points at the post.
+func (s *store) talkers(ctx context.Context, tx pgx.Tx, ts []any, first int64, c config) ([]MeTalker, map[string]int64, error) {
+	rows, err := tx.Query(ctx, `WITH n AS (SELECT n.from_account_id AS id, n.created_at AS at, COALESCE(st.visibility <= 1, false) AS pub
+			FROM notifications n
+			LEFT JOIN mentions mn ON mn.id = n.activity_id AND n.activity_type = 'Mention'
+			LEFT JOIN statuses st ON st.id = mn.status_id AND st.deleted_at IS NULL
+			WHERE n.account_id = $1 AND n.id >= $5 AND n.created_at >= $4`+s.notifExtra+` AND n.type = 'mention'),
+		m AS (SELECT id, count(*) FILTER (WHERE at >= $2) AS d, count(*) FILTER (WHERE at >= $3) AS w, count(*) AS mo,
+			count(*) FILTER (WHERE pub AND at >= $2) AS pd, count(*) FILTER (WHERE pub AND at >= $3) AS pw, count(*) FILTER (WHERE pub) AS pm
+			FROM n GROUP BY 1)
 		SELECT a.id, a.username, COALESCE(a.domain, ''), COALESCE(a.display_name, ''), COALESCE(a.avatar_file_name, ''),
-			COALESCE(a.url, a.uri, ''), m.d, m.w, m.m,
-			CASE WHEN a.domain IS NULL THEN (`+localOK+`) ELSE (`+remoteOK+`) END
+			COALESCE(a.url, a.uri, ''), m.d, m.w, m.mo, m.pd, m.pw, m.pm,
+			CASE WHEN a.domain IS NULL THEN (`+localOK+`) ELSE (`+remoteOK+`) END,
+			sum(m.pd) OVER (), sum(m.pw) OVER (), sum(m.pm) OVER ()
 		FROM m JOIN accounts a ON a.id = m.id
 		WHERE a.suspended_at IS NULL AND a.id <> $1
-		ORDER BY m.m DESC, a.id LIMIT 100`, append(ts, first)...)
+		ORDER BY m.mo DESC, a.id LIMIT 100`, append(ts, first)...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 	out := []MeTalker{}
+	pub := map[string]int64{"d": 0, "w": 0, "m": 0}
 	for rows.Next() {
 		var (
 			id                       int64
 			user, dom, name, ava, at string
-			d, w, mo                 int64
+			d, w, mo, pd, pw, pm     int64
+			sd, sw, sm               int64
 			t                        MeTalker
 		)
-		if err := rows.Scan(&id, &user, &dom, &name, &ava, &at, &d, &w, &mo, &t.Shown); err != nil {
-			return nil, err
+		if err := rows.Scan(&id, &user, &dom, &name, &ava, &at, &d, &w, &mo, &pd, &pw, &pm, &t.Shown, &sd, &sw, &sm); err != nil {
+			return nil, nil, err
 		}
+		pub = map[string]int64{"d": sd, "w": sw, "m": sm}
 		t.Acct, t.Name = user, cleanName(name)
 		if t.Name == "" {
 			t.Name = user
@@ -285,9 +299,10 @@ func (s *store) talkers(ctx context.Context, tx pgx.Tx, ts []any, first int64, c
 		}
 		t.Avatar = avatarURL(c.media, c.instance, id, ava, dom != "")
 		t.Counts = map[string]int64{"d": d, "w": w, "m": mo}
+		t.Public = map[string]int64{"d": pd, "w": pw, "m": pm}
 		out = append(out, t)
 	}
-	return out, rows.Err()
+	return out, pub, rows.Err()
 }
 
 // myLinks: the newest links of the account's own posts (no direct messages).
@@ -318,15 +333,25 @@ func (s *store) myLinks(ctx context.Context, tx pgx.Tx, id, since int64) ([]MeLi
 	return out, rows.Err()
 }
 
-// topTalkers: the people to show for a period, at most n.
+// count: how many mentions a talker made in a period, all or only in public
+// and unlisted posts.
+func (t MeTalker) count(period string, public bool) int64 {
+	if public {
+		return t.Public[period]
+	}
+	return t.Counts[period]
+}
+
+// topTalkers: the people to show for a period, at most n. The public page only
+// counts mentions made in public, so a direct message never puts anyone there.
 func topTalkers(all []MeTalker, period string, public bool, n int) []MeTalker {
 	out := []MeTalker{}
 	for _, t := range all {
-		if t.Counts[period] > 0 && (t.Shown || !public) {
+		if t.count(period, public) > 0 && (t.Shown || !public) {
 			out = append(out, t)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Counts[period] > out[j].Counts[period] })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].count(period, public) > out[j].count(period, public) })
 	if len(out) > n {
 		out = out[:n]
 	}

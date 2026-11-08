@@ -41,7 +41,9 @@ followed, for today, 7 and 30 days; who talks to them the most; the links they s
   `__Host-` cookie for 4 hours; the forms (public page, sign out) carry a token tied to it.
 - **Only the person sees it**, unless they open a **public page** at `/@username`. Off by default.
   The public page only shows the people who talk to them under the main page's rules
-  (discoverable, no `#nonumeros`, in good standing), only links from posts the main page could
+  (discoverable, no `#nonumeros`, in good standing) and only counts mentions made in public or
+  unlisted posts, so it never tells who sends the person direct or followers-only messages; only
+  links from posts the main page could
   show, and no follower numbers when they hide their social graph. `#nonumeros` in the bio, a
   limited or moved account, or a renamed one take it down at once, whatever the setting.
 - A `/@name` that isn't on the list of open pages is a 404 without a query, so names can't be
@@ -120,14 +122,16 @@ count, daily time, last run, count, sizes).
 
 The database user only needs `SELECT` on: `accounts`, `account_stats`, `users`, `statuses`,
 `notifications`, `favourites`, `follows`, `preview_cards`, `preview_cards_statuses`,
-`media_attachments`, `polls`, `reports`, `oauth_applications`, `instances`. Make it read-only:
+`media_attachments`, `polls`, `reports`, `oauth_applications`, `instances` and, for `/minhaconta`,
+`mentions`. Make it read-only:
 
 ```sql
 CREATE ROLE numeros LOGIN PASSWORD '...';
 ALTER ROLE numeros SET default_transaction_read_only = on;
 ALTER ROLE numeros SET statement_timeout = '60s';
 GRANT SELECT ON accounts, account_stats, users, statuses, notifications, favourites, follows,
-  preview_cards, preview_cards_statuses, media_attachments, polls, reports, oauth_applications, instances TO numeros;
+  preview_cards, preview_cards_statuses, media_attachments, polls, reports, oauth_applications, instances,
+  mentions TO numeros;
 ```
 
 It works through pgBouncer in transaction mode (simple protocol, one connection).

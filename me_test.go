@@ -67,9 +67,15 @@ func testMe() *Me {
 		Since: time.Date(2022, 5, 1, 0, 0, 0, 0, time.UTC), Posts: 900, Followers: 321, Following: 12, CanPublic: true,
 		Periods: map[string]MeCounts{"d": counts(1), "w": counts(5), "m": counts(20)},
 		Talkers: []MeTalker{
-			{Person: Person{Acct: "fala@remote.example", Name: "Fala", URL: "https://remote.example/@fala"}, Counts: map[string]int64{"d": 1, "w": 2, "m": 9}, Shown: true},
-			{Person: Person{Acct: "segredo", Name: "Segredo", URL: "https://inst.example/@segredo"}, Counts: map[string]int64{"d": 0, "w": 4, "m": 4}, Shown: false},
+			{Person: Person{Acct: "fala@remote.example", Name: "Fala", URL: "https://remote.example/@fala"},
+				Counts: map[string]int64{"d": 1, "w": 2, "m": 9}, Public: map[string]int64{"d": 1, "w": 2, "m": 7}, Shown: true},
+			{Person: Person{Acct: "segredo", Name: "Segredo", URL: "https://inst.example/@segredo"},
+				Counts: map[string]int64{"d": 0, "w": 4, "m": 4}, Public: map[string]int64{"d": 0, "w": 4, "m": 4}, Shown: false},
+			// Discoverable, but only ever mentioned ana in direct messages.
+			{Person: Person{Acct: "sodm", Name: "SoDM", URL: "https://inst.example/@sodm"},
+				Counts: map[string]int64{"d": 0, "w": 0, "m": 30}, Public: map[string]int64{"d": 0, "w": 0, "m": 0}, Shown: true},
 		},
+		PublicMentions: map[string]int64{"d": 1, "w": 6, "m": 11},
 		Links: []MeLink{
 			{Link: Link{URL: "https://pub.example/a", Title: "Publico", Domain: "pub.example", At: time.Now().Add(-time.Hour)}, Public: true},
 			{Link: Link{URL: "https://priv.example/b", Title: "SoSeguidores", Domain: "priv.example", At: time.Now().Add(-time.Hour)}},
@@ -85,6 +91,12 @@ func TestTopTalkersAndLinks(t *testing.T) {
 	}
 	if got := topTalkers(m.Talkers, "w", true, 10); len(got) != 1 || got[0].Acct != "fala@remote.example" {
 		t.Errorf("public leaves out who can't be shown: %+v", got)
+	}
+	if got := topTalkers(m.Talkers, "m", false, 10); len(got) != 3 || got[0].Acct != "sodm" {
+		t.Errorf("own page counts direct messages too: %+v", got)
+	}
+	if got := topTalkers(m.Talkers, "m", true, 10); len(got) != 1 || got[0].Acct != "fala@remote.example" || got[0].count("m", true) != 7 {
+		t.Errorf("public page: only mentions in public posts: %+v", got)
 	}
 	if got := topTalkers(m.Talkers, "d", false, 10); len(got) != 1 {
 		t.Errorf("zero counts stay out: %+v", got)
@@ -270,7 +282,7 @@ func TestAccountPages(t *testing.T) {
 
 	// Signed in: own numbers, everyone who talks, every link.
 	res, body = do("GET", "/minhaconta", sess, nil)
-	for _, want := range []string{"Ana", "@ana", "Segredo", "SoSeguidores", "Abrir página pública", "321"} {
+	for _, want := range []string{"Ana", "@ana", "Segredo", "SoDM", "SoSeguidores", "Abrir página pública", "321"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("own page lacks %q", want)
 		}
@@ -311,7 +323,7 @@ func TestAccountPages(t *testing.T) {
 			t.Errorf("public page lacks %q", want)
 		}
 	}
-	for _, not := range []string{"Segredo", "SoSeguidores", "/logout", csrf} {
+	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf} {
 		if strings.Contains(body, not) {
 			t.Errorf("public page shows %q", not)
 		}
@@ -489,11 +501,28 @@ func TestMeQueries(t *testing.T) {
 	for i := 0; i < 50; i++ { // padding: old rows the bound must skip
 		exec(`INSERT INTO notifications (account_id, from_account_id, type, created_at) VALUES (1, 10, 'mention', $1)`, at(90*24*time.Hour))
 	}
+	// A mention notification points at its mentions row, which points at the post.
+	mention := func(to, from int64, ago time.Duration, visibility int, filtered bool) {
+		t.Helper()
+		sid := post(from, ago, fmt.Sprintf("visibility = %d", visibility))
+		var mid int64
+		if err := db.pool.QueryRow(ctx, `INSERT INTO mentions (account_id, status_id) VALUES ($1, $2) RETURNING id`, to, sid).Scan(&mid); err != nil {
+			t.Fatal(err)
+		}
+		exec(`INSERT INTO notifications (account_id, from_account_id, type, created_at, filtered, activity_type, activity_id)
+			VALUES ($1, $2, 'mention', $3, $4, 'Mention', $5)`, to, from, at(ago), filtered, mid)
+	}
+	mention(1, 10, time.Minute, 3, false)     // fala, a direct message
+	mention(1, 10, 10*24*time.Hour, 0, false) // fala, public
+	mention(1, 11, time.Minute, 1, false)     // muda, unlisted
+	mention(1, 2, 10*24*time.Hour, 2, false)  // bia, followers-only
+	mention(1, 3, 10*24*time.Hour, 0, false)  // caio, public
+	mention(1, 6, time.Minute, 0, false)      // eva (suspended), public
+	mention(1, 10, time.Minute, 0, true)      // filtered by ana's policy
+	mention(2, 10, time.Minute, 0, false)     // to someone else
 	exec(`INSERT INTO notifications (account_id, from_account_id, type, created_at, filtered) VALUES
-		(1, 10, 'mention', $1, false), (1, 10, 'mention', $2, false), (1, 11, 'mention', $1, false),
-		(1, 2, 'mention', $2, false), (1, 3, 'mention', $2, false), (1, 6, 'mention', $1, false),
-		(1, 2, 'reblog', $1, false), (1, 2, 'reblog', $3, false), (1, 10, 'favourite', $1, false),
-		(1, 10, 'mention', $1, true), (2, 1, 'mention', $1, false)`, at(time.Minute), at(10*24*time.Hour), at(5*24*time.Hour))
+		(1, 2, 'reblog', $1, false), (1, 2, 'reblog', $2, false), (1, 10, 'favourite', $1, false)`,
+		at(time.Minute), at(5*24*time.Hour))
 	// ids grow with time, as in Mastodon: the 30-day bound relies on it.
 	exec(`INSERT INTO favourites (account_id, status_id, created_at) VALUES (1, 7, $3), (1, 6, $2), (1, 5, $1), (2, 8, $1)`,
 		at(time.Minute), at(10*24*time.Hour), at(40*24*time.Hour))
@@ -536,11 +565,17 @@ func TestMeQueries(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, tk := range m.Talkers {
-		got[tk.Acct] = fmt.Sprintf("%d/%d/%v", tk.Counts["d"], tk.Counts["m"], tk.Shown)
+		got[tk.Acct] = fmt.Sprintf("%d/%d/%d/%d/%v", tk.Counts["d"], tk.Counts["m"], tk.Public["d"], tk.Public["m"], tk.Shown)
 	}
-	wantT := map[string]string{"fala@remote.example": "1/2/true", "muda@remote.example": "1/1/false", "bia": "0/1/true", "caio": "0/1/false"}
+	// counts all today/30d, public today/30d, may show
+	wantT := map[string]string{"fala@remote.example": "1/2/0/1/true", "muda@remote.example": "1/1/1/1/false",
+		"bia": "0/1/0/0/true", "caio": "0/1/0/1/false"}
 	if fmt.Sprint(got) != fmt.Sprint(wantT) {
 		t.Errorf("talkers (suspended eva out, the filtered one out): %v", got)
+	}
+	// Public mentions: fala's public one, muda's unlisted one, caio's (suspended eva is out).
+	if m.PublicMentions["d"] != 1 || m.PublicMentions["m"] != 3 {
+		t.Errorf("public mentions: %v", m.PublicMentions)
 	}
 	var links []string
 	for _, l := range m.Links {

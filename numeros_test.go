@@ -190,7 +190,8 @@ CREATE TABLE statuses (id bigint PRIMARY KEY, account_id bigint, text text DEFAU
   visibility int DEFAULT 0, reblog_of_id bigint, deleted_at timestamp, sensitive boolean DEFAULT false, spoiler_text text DEFAULT '',
   language text, application_id bigint, poll_id bigint, local_only boolean, expires_at timestamp);
 CREATE TABLE notifications (id bigserial PRIMARY KEY, account_id bigint, from_account_id bigint, type text, created_at timestamp DEFAULT now(),
-  filtered boolean DEFAULT false);
+  filtered boolean DEFAULT false, activity_type text, activity_id bigint);
+CREATE TABLE mentions (id bigserial PRIMARY KEY, account_id bigint, status_id bigint);
 CREATE TABLE favourites (id bigserial PRIMARY KEY, account_id bigint, status_id bigint, created_at timestamp DEFAULT now());
 CREATE TABLE follows (id bigserial PRIMARY KEY, account_id bigint, target_account_id bigint, created_at timestamp DEFAULT now());
 CREATE TABLE preview_cards (id bigserial PRIMARY KEY, url text, title text);
