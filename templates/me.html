@@ -77,6 +77,77 @@
       {{end}}</div>{{else}}<p class="emptyrow">{{.T.me_nolinks}}</p>{{end}}
     </div>
   </div>
+{{if and .More (not .Public)}}{{$T := .T}}{{with .More}}
+  <div class="cat"><h2>{{$T.mm_h}}</h2><span class="rule"></span><span class="note">{{$T.d30}}</span></div>
+  <section class="tiles mine three">
+    {{range .MediaTiles}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div>{{if .Sub}}<div class="sub">{{.Sub}}</div>{{end}}</div>
+    {{end}}
+  </section>
+  {{if .Photos}}<div class="photos mine">
+    {{range $i, $p := .Photos}}<a class="ph" href="{{$p.URL}}" rel="noopener"><img src="{{$p.Src}}" alt="{{index $.More.PhotoAlts $i}}" loading="lazy" referrerpolicy="no-referrer"></a>
+    {{end}}
+  </div>{{end}}
+
+  <div class="cat"><h2>{{$T.mp_h}}</h2><span class="rule"></span><span class="note">{{$T.d30}}</span></div>
+  <div class="two gap">
+    <div class="card"><h3>{{$T.mp_top}}<small>{{$T.mp_top_sub}}</small></h3>
+      {{if .Top}}<ol class="posts">
+      {{range .Top}}<li><a href="{{.URL}}" rel="noopener">{{if .CW}}<span class="cw">CW</span> {{end}}{{.Text}}</a><span class="sub">{{.Sub}}</span></li>
+      {{end}}</ol>{{else}}<p class="emptyrow">{{$T.mp_none}}</p>{{end}}
+    </div>
+    <div class="card"><h3>{{$T.mp_replied}}</h3>
+      {{with .Replied}}<ol class="posts"><li><a href="{{.URL}}" rel="noopener">{{if .CW}}<span class="cw">CW</span> {{end}}{{.Text}}</a><span class="sub">{{.Sub}}</span></li></ol>{{else}}<p class="emptyrow">{{$T.mp_none}}</p>{{end}}
+      {{with .TopPoll}}<h3 class="h3in">{{$T.mo_top_poll}}</h3><ol class="posts"><li><a href="{{.URL}}" rel="noopener">{{if .CW}}<span class="cw">CW</span> {{end}}{{.Text}}</a><span class="sub">{{.Sub}}</span></li></ol>{{end}}
+    </div>
+  </div>
+
+  <div class="cat"><h2>{{$T.ms_h}}</h2><span class="rule"></span><span class="note">{{$T.d30}}</span></div>
+  <section class="tiles mine">
+    {{range .VisTiles}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div></div>
+    {{end}}
+  </section>
+  <section class="tiles mine three">
+    {{range .StyleTiles}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div>{{if .Sub}}<div class="sub">{{.Sub}}</div>{{end}}</div>
+    {{end}}
+  </section>
+  <div class="grid">
+    {{template "bars" (dict3 $T.languages $T.d30 .Langs)}}
+    {{template "bars" (dict3 $T.ms_apps $T.d30 .Apps)}}
+    {{template "bars" (dict3 $T.ms_tags $T.d30 .Tags)}}
+  </div>
+
+  <div class="cat"><h2>{{$T.mh_h}}</h2><span class="rule"></span><span class="note">{{.HeatNote}}</span></div>
+  <div class="card heatcard">
+    <table class="heat"><tbody>
+    {{range .Heat}}<tr><th scope="row">{{.Label}}</th>{{range .Cells}}<td class="l{{.Level}}" title="{{.Title}}"></td>{{end}}</tr>
+    {{end}}<tr class="hours"><th></th>{{range .HeatHours}}<td>{{.}}</td>{{end}}</tr>
+    </tbody></table>
+  </div>
+  <section class="tiles mine">
+    {{range .RhythmTiles}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div>{{if .Sub}}<div class="sub">{{.Sub}}</div>{{end}}</div>
+    {{end}}
+  </section>
+
+  <div class="cat"><h2>{{$T.mt_h}}</h2><span class="rule"></span><span class="note">{{$T.d30}}</span></div>
+  <div class="two gap">
+    {{template "people" (dict4 $T.mt_favto $T.mt_favs .FavTo $T.mt_none)}}
+    {{template "people" (dict4 $T.mt_boostto $T.mt_boosts .BoostTo $T.mt_none)}}
+  </div>
+  <div class="two gap">
+    {{template "people" (dict4 $T.mt_new $T.d30 .NewFollowers $T.mt_new_none)}}
+    {{template "people" (dict4 $T.mt_quiet .QuietN .Quiet $T.mt_quiet_none)}}
+  </div>
+  <p class="note">{{$T.mt_quiet_note}}</p>
+
+  <div class="cat"><h2>{{$T.mo_h}}</h2><span class="rule"></span></div>
+  <section class="tiles mine">
+    {{range .PollTiles}}<div class="tile"><div class="lab">{{.Label}}</div><div class="val">{{.Value}}</div>{{if .Sub}}<div class="sub">{{.Sub}}</div>{{end}}</div>
+    {{end}}
+  </section>
+  <div class="grid">
+    {{template "bars" (dict3 $T.mo_servers $T.mo_servers_sub .Servers)}}
+  </div>
+{{end}}{{else if and .MoreBusy (not .Public)}}<p class="note">{{.T.more_busy}}</p>{{end}}
 {{end}}
 
   <footer>
@@ -86,3 +157,6 @@
 </div>
 </body>
 </html>
+{{define "people"}}<div class="card"><h3>{{.Title}}<small>{{.Sub}}</small></h3>{{if .Rows}}<ol class="rank">
+  {{range .Rows}}<li><span class="n">{{.N}}</span><img class="av" src="{{.Avatar}}" alt="" width="30" height="30" loading="lazy" referrerpolicy="no-referrer"><span class="who"><a href="{{.URL}}" rel="nofollow noopener"><b>{{.Name}}</b><span>{{.Acct}}</span></a></span>{{if .Value}}<span class="num">{{.Value}}</span><svg class="bar" viewBox="0 0 100 2" preserveAspectRatio="none" aria-hidden="true"><rect width="{{.Bar}}" height="2"/></svg>{{end}}</li>
+  {{end}}</ol>{{else}}<p class="emptyrow">{{.Empty}}</p>{{end}}</div>{{end}}

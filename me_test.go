@@ -268,6 +268,12 @@ func TestAccountPages(t *testing.T) {
 		m.At = time.Now()
 		return &m, nil
 	}), inst.Client())
+	srv.enableMore(newMeCache(func(ctx context.Context, id int64) (*MeMore, error) {
+		if id != 7 {
+			return nil, errNoAccount
+		}
+		return testMore(), nil
+	}))
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
 	noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -350,10 +356,15 @@ func TestAccountPages(t *testing.T) {
 
 	// Signed in: own numbers, everyone who talks, every link.
 	res, body = do("GET", "/minhaconta", sess, nil)
-	for _, want := range []string{"Ana", "@ana", "Segredo", "SoDM", "SoSeguidores", "Abrir página pública", "321", "favs dados", ">777<"} {
+	for _, want := range []string{"Ana", "@ana", "Segredo", "SoDM", "SoSeguidores", "Abrir página pública", "321", "favs dados", ">777<",
+		"Sua mídia", "FotoPrivada", "MelhorPost", "Como você posta", `class="l4"`, "DeQuemDouFav", "SeguidorNovo", "Calado", "#GatosDaAna", "servidor.salvo"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("own page lacks %q", want)
 		}
+	}
+	if p := os.Getenv("NUMEROS_DUMP"); p != "" { // a look at the page: NUMEROS_DUMP=dir go test -run TestAccountPages
+		os.WriteFile(p+"/me.html", []byte(strings.Replace(body, `href="/numeros.css?v=`, `href="numeros.css?v=`, 1)), 0o600)
+		os.WriteFile(p+"/numeros.css", srv.css, 0o600)
 	}
 	csrf := between(body, `name="t" value="`, `"`)
 	if csrf == "" {
@@ -398,7 +409,8 @@ func TestAccountPages(t *testing.T) {
 			t.Errorf("public page lacks public count %s", want)
 		}
 	}
-	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf, "favs dados", ">777<", ">80<", ">40<", ">100<"} {
+	for _, not := range []string{"Segredo", "SoDM", "SoSeguidores", "/logout", csrf, "favs dados", ">777<", ">80<", ">40<", ">100<",
+		"Sua mídia", "FotoPrivada", "MelhorPost", "Como você posta", "heat", "DeQuemDouFav", "SeguidorNovo", "Calado", "GatosDaAna", "servidor.salvo", "DMs"} {
 		if strings.Contains(body, not) {
 			t.Errorf("public page shows %q", not)
 		}
@@ -692,4 +704,23 @@ func TestMeQueries(t *testing.T) {
 	if m, _ := db.me(ctx, 1, now, cfg, &bounds{}); m == nil || m.CanPublic {
 		t.Error("#nonumeros should take the public page away")
 	}
+}
+
+// testMore: extra numbers with a marker in every part, to see each lands on the
+// own page and none on the public one.
+func testMore() *MeMore {
+	m := &MeMore{At: time.Now(), Media: map[string]int64{"image": 3}, AltDone: 1, AltOf: 3, MediaBytes: 5 << 20,
+		Photos:       []Photo{{Src: "https://cache.example/p.jpg", Alt: "FotoPrivada", URL: "https://inst.example/@ana/1"}},
+		Top:          []MePost{{ID: 1, URL: "https://inst.example/@ana/1", Text: "MelhorPost", Vis: "private", Favs: 9, At: time.Now()}},
+		Vis:          map[string]int64{"public": 2, "direct": 1},
+		DMsGot:       4,
+		Langs:        []Bar{{"pt", 3}},
+		Tags:         []Bar{{"GatosDaAna", 2}},
+		FavTo:        []Person{{Acct: "bia", Name: "DeQuemDouFav", URL: "https://inst.example/@bia", Avatar: "a", Value: 3}},
+		NewFollowers: []Person{{Acct: "x", Name: "SeguidorNovo", URL: "https://inst.example/@x", Avatar: "a"}},
+		Quiet:        []Person{{Acct: "y", Name: "Calado", URL: "https://inst.example/@y", Avatar: "a"}}, QuietN: 1,
+		BookmarkServers: []Bar{{"servidor.salvo", 1}},
+	}
+	m.Heat[1][9] = 5
+	return m
 }

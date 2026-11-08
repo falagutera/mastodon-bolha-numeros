@@ -46,6 +46,8 @@ type store struct {
 	notifExtra string
 	// localOnly: statuses has local_only (bolha.us build), and public pages leave those out.
 	localOnly bool
+	// expires: statuses has expires_at (bolha.us build: posts that delete themselves).
+	expires bool
 }
 
 func openStore(ctx context.Context, c config) (*store, error) {
@@ -80,7 +82,7 @@ func (s *store) schema(ctx context.Context) error {
 	}
 	defer rows.Close()
 	var extra []string
-	s.notifExtra, s.localOnly = "", false
+	s.notifExtra, s.localOnly, s.expires = "", false, false
 	for rows.Next() {
 		var t, c string
 		if err := rows.Scan(&t, &c); err != nil {
@@ -92,6 +94,7 @@ func (s *store) schema(ctx context.Context) error {
 			s.localOnly = true
 		case "statuses.expires_at":
 			extra = append(extra, "s.expires_at IS NULL")
+			s.expires = true
 		case "notifications.filtered":
 			s.notifExtra = " AND filtered = false"
 		}

@@ -211,6 +211,7 @@ func main() {
 			log.Fatalf("NUMEROS_PAGES_FILE: %v", err)
 		}
 		srv.enableAccounts(pg, newMeCache(meCompute(visits, cfg)), client)
+		srv.enableMore(newMeCache(moreCompute(visits, cfg)))
 		log.Printf("sign-in on: %d public pages", pg.count())
 	}
 	go col.run(ctx)

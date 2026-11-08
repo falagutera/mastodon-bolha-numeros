@@ -142,6 +142,26 @@
   .pubbody .btn{margin-top:8px}
   .tiles.counts{margin-top:4px}
   .mylinks{display:grid;gap:8px;padding:0 14px 14px}
+  /* /minhaconta, extra cards (0.5.0) */
+  .tiles.three{grid-template-columns:repeat(3,1fr)}
+  .photos.mine{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin-top:14px}
+  ol.posts{list-style:none;margin:0;padding:0 18px 12px;counter-reset:p}
+  ol.posts li{padding:8px 0;border-top:1px solid var(--border);display:grid;gap:3px}
+  ol.posts li:first-child{border-top:0}
+  ol.posts a{color:var(--text);text-decoration:none;overflow-wrap:anywhere;line-height:1.4}
+  ol.posts a:hover{color:var(--accent-strong)}
+  ol.posts .sub{font-family:var(--mono);font-size:.7rem;color:var(--text-faint)}
+  .cw{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;border:1px solid var(--border-strong);border-radius:4px;padding:0 4px;color:var(--text-dim)}
+  .card .h3in{padding:12px 18px 6px;border-top:1px solid var(--border);font-size:.92rem}
+  .heatcard{padding:14px 14px 10px;overflow-x:auto}
+  table.heat{border-collapse:separate;border-spacing:3px;width:100%;min-width:520px}
+  table.heat th{font-family:var(--mono);font-size:.66rem;color:var(--text-faint);font-weight:500;text-align:right;padding-right:6px;width:34px}
+  table.heat td{height:16px;border-radius:3px;background:var(--surface-2)}
+  table.heat td.l1{background:var(--accent-soft)}
+  table.heat td.l2{background:color-mix(in srgb,var(--accent) 45%,var(--accent-soft))}
+  table.heat td.l3{background:color-mix(in srgb,var(--accent) 75%,var(--accent-soft))}
+  table.heat td.l4{background:var(--accent)}
+  table.heat tr.hours td{background:none;height:auto;font-family:var(--mono);font-size:.62rem;color:var(--text-faint);text-align:left}
   @media (max-width:520px){
     .tiles.counts,.tiles.mine{grid-template-columns:1fr 1fr;gap:10px}
     .tiles.counts .tile,.tiles.mine .tile{padding:14px}

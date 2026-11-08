@@ -189,7 +189,7 @@ CREATE TABLE users (id bigserial PRIMARY KEY, account_id bigint, approved boolea
 CREATE TABLE account_stats (account_id bigint PRIMARY KEY, statuses_count bigint DEFAULT 0, followers_count bigint DEFAULT 0, following_count bigint DEFAULT 0);
 CREATE TABLE statuses (id bigint PRIMARY KEY, account_id bigint, text text DEFAULT '', created_at timestamp DEFAULT now(),
   visibility int DEFAULT 0, reblog_of_id bigint, deleted_at timestamp, sensitive boolean DEFAULT false, spoiler_text text DEFAULT '',
-  language text, application_id bigint, poll_id bigint, local_only boolean, expires_at timestamp);
+  language text, application_id bigint, poll_id bigint, local_only boolean, expires_at timestamp, in_reply_to_id bigint, edited_at timestamp);
 CREATE TABLE notifications (id bigserial PRIMARY KEY, account_id bigint, from_account_id bigint, type text, created_at timestamp DEFAULT now(),
   filtered boolean DEFAULT false, activity_type text, activity_id bigint);
 CREATE TABLE mentions (id bigserial PRIMARY KEY, account_id bigint, status_id bigint);
@@ -197,8 +197,14 @@ CREATE TABLE favourites (id bigserial PRIMARY KEY, account_id bigint, status_id 
 CREATE TABLE follows (id bigserial PRIMARY KEY, account_id bigint, target_account_id bigint, created_at timestamp DEFAULT now());
 CREATE TABLE preview_cards (id bigserial PRIMARY KEY, url text, title text);
 CREATE TABLE preview_cards_statuses (preview_card_id bigint, status_id bigint);
-CREATE TABLE media_attachments (id bigint PRIMARY KEY, status_id bigint, account_id bigint, type int, file_file_name text, description text);
-CREATE TABLE polls (id bigint PRIMARY KEY, votes_count bigint);
+CREATE TABLE media_attachments (id bigint PRIMARY KEY, status_id bigint, account_id bigint, type int, file_file_name text, description text,
+  file_file_size int, thumbnail_file_size int);
+CREATE TABLE polls (id bigint PRIMARY KEY, votes_count bigint, account_id bigint, status_id bigint, created_at timestamp DEFAULT now());
+CREATE TABLE status_stats (id bigserial PRIMARY KEY, status_id bigint UNIQUE, replies_count bigint DEFAULT 0, reblogs_count bigint DEFAULT 0, favourites_count bigint DEFAULT 0);
+CREATE TABLE tags (id bigint PRIMARY KEY, name text, display_name text);
+CREATE TABLE statuses_tags (status_id bigint, tag_id bigint);
+CREATE TABLE bookmarks (id bigserial PRIMARY KEY, account_id bigint, status_id bigint, created_at timestamp DEFAULT now());
+CREATE TABLE poll_votes (id bigserial PRIMARY KEY, account_id bigint, poll_id bigint, choice int, created_at timestamp DEFAULT now());
 CREATE TABLE reports (id bigserial PRIMARY KEY, created_at timestamp DEFAULT now());
 CREATE TABLE oauth_applications (id bigint PRIMARY KEY, name text);
 CREATE TABLE instances (domain text);

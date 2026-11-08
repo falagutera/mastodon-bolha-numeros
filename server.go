@@ -37,6 +37,9 @@ func newServer(cfg config, col *collector) (*server, error) {
 		"dict3": func(title, sub string, rows []barRow) map[string]any {
 			return map[string]any{"Title": title, "Sub": sub, "Rows": rows}
 		},
+		"dict4": func(title, sub string, rows []rankRow, empty string) map[string]any {
+			return map[string]any{"Title": title, "Sub": sub, "Rows": rows, "Empty": empty}
+		},
 	}).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err

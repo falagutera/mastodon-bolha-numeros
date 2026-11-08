@@ -15,12 +15,20 @@ import (
 // /@user pages people turn on. nil on the server when it isn't configured.
 type accounts struct {
 	pages *pages
-	cache *meCache
+	cache *meCache[*Me]
+	more  *meCache[*MeMore] // the extra numbers only /minhaconta shows; nil: none
 }
 
-func (s *server) enableAccounts(pg *pages, cache *meCache, client *http.Client) {
+func (s *server) enableAccounts(pg *pages, cache *meCache[*Me], client *http.Client) {
 	s.acc = &accounts{pages: pg, cache: cache}
 	s.client = client
+}
+
+// enableMore adds the extra numbers of /minhaconta; they share the cache's
+// semaphore, so visits still put one query at a time on the database.
+func (s *server) enableMore(more *meCache[*MeMore]) {
+	more.sem = s.acc.cache.sem
+	s.acc.more = more
 }
 
 func (s *server) accountRoutes(mux *http.ServeMux) {
@@ -68,6 +76,8 @@ type meView struct {
 	TalkersTitle                          string
 	Links                                 []Link
 	LinkSubs                              []string
+	More                                  *moreView // /minhaconta only; never on the public page
+	MoreBusy                              bool      // the extra numbers couldn't be computed now
 }
 
 func (s *server) baseMeView(lang string) meView {
@@ -108,6 +118,17 @@ func (s *server) mePage(w http.ResponseWriter, r *http.Request, lang string) {
 		v.PageURL = s.cfg.publicURL + "/en/@" + m.User
 	}
 	s.fill(&v, m, false, time.Now())
+	if s.acc.more != nil {
+		mm, err := s.acc.more.get(r.Context(), sess.ID, meFresh, meStale)
+		switch {
+		case err == nil:
+			v.More = s.fillMore(mm, v.T, lang, time.Now())
+		case errors.Is(err, errNoAccount):
+		default:
+			log.Printf("minhaconta %d, more: %v", sess.ID, err)
+			v.MoreBusy = true
+		}
+	}
 	s.renderMe(w, http.StatusOK, v)
 }
 

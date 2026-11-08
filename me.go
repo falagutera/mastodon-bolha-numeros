@@ -419,21 +419,26 @@ func shownLinks(all []MeLink, public bool, n int) []MeLink {
 	return out
 }
 
+// stamped: what a meCache keeps, with the time it was computed.
+type stamped interface{ stamp() time.Time }
+
+func (m *Me) stamp() time.Time { return m.At }
+
 // meCache keeps each account's numbers for a few minutes and lets one
 // computation run at a time: visits never put more than one query at a time
-// on the database.
-type meCache struct {
-	compute func(ctx context.Context, id int64) (*Me, error)
+// on the database. Two caches (Me and MeMore) share one semaphore.
+type meCache[T stamped] struct {
+	compute func(ctx context.Context, id int64) (T, error)
 	now     func() time.Time
 	sem     chan struct{}
 
 	mu   sync.Mutex
-	m    map[int64]*Me
+	m    map[int64]T
 	gone map[int64]time.Time // accounts that weren't found, so a stale public URL doesn't query each visit
 }
 
-func newMeCache(compute func(ctx context.Context, id int64) (*Me, error)) *meCache {
-	return &meCache{compute: compute, now: time.Now, sem: make(chan struct{}, 1), m: map[int64]*Me{}, gone: map[int64]time.Time{}}
+func newMeCache[T stamped](compute func(ctx context.Context, id int64) (T, error)) *meCache[T] {
+	return &meCache[T]{compute: compute, now: time.Now, sem: make(chan struct{}, 1), m: map[int64]T{}, gone: map[int64]time.Time{}}
 }
 
 var errBusy = errors.New("busy")
@@ -448,12 +453,20 @@ const (
 // computation fails or waits too long, numbers up to maxStale old are better
 // than none; past that it is an error. Public pages pass maxStale = maxAge, so
 // an opt-out (#nonumeros, a closed page) is never hidden behind a slow database.
-func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Duration) (*Me, error) {
-	usable := func(m *Me) bool { return m != nil && c.now().Sub(m.At) < maxStale }
-	if c.isGone(id, maxAge) {
-		return nil, errNoAccount
+func (c *meCache[T]) get(ctx context.Context, id int64, maxAge, maxStale time.Duration) (T, error) {
+	var none T
+	fresh := func() (T, bool) {
+		m, ok := c.lookup(id)
+		return m, ok && c.now().Sub(m.stamp()) < maxAge
 	}
-	if m := c.cached(id); m != nil && c.now().Sub(m.At) < maxAge {
+	usable := func() (T, bool) {
+		m, ok := c.lookup(id)
+		return m, ok && c.now().Sub(m.stamp()) < maxStale
+	}
+	if c.isGone(id, maxAge) {
+		return none, errNoAccount
+	}
+	if m, ok := fresh(); ok {
 		return m, nil
 	}
 	wait := time.NewTimer(10 * time.Second)
@@ -461,19 +474,19 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Durat
 	select {
 	case c.sem <- struct{}{}:
 	case <-wait.C:
-		if m := c.cached(id); usable(m) {
+		if m, ok := usable(); ok {
 			return m, nil
 		}
-		return nil, errBusy
+		return none, errBusy
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return none, ctx.Err()
 	}
 	defer func() { <-c.sem }()
-	if m := c.cached(id); m != nil && c.now().Sub(m.At) < maxAge { // computed while we waited
+	if m, ok := fresh(); ok { // computed while we waited
 		return m, nil
 	}
 	if c.isGone(id, maxAge) { // found missing while we waited
-		return nil, errNoAccount
+		return none, errNoAccount
 	}
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -484,18 +497,18 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Durat
 			c.mu.Lock()
 			c.gone[id] = c.now()
 			c.mu.Unlock()
-			return nil, err
+			return none, err
 		}
-		if old := c.cached(id); usable(old) {
+		if old, ok := usable(); ok {
 			return old, nil
 		}
-		return nil, err
+		return none, err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.m)+len(c.gone) > 5000 { // drop what's past any use
 		for k, v := range c.m {
-			if c.now().Sub(v.At) > meStale {
+			if c.now().Sub(v.stamp()) > meStale {
 				delete(c.m, k)
 			}
 		}
@@ -512,20 +525,27 @@ func (c *meCache) get(ctx context.Context, id int64, maxAge, maxStale time.Durat
 
 // isGone: the account wasn't found less than maxAge ago (it may come back, e.g.
 // unsuspended, so the answer is kept no longer than numbers would be).
-func (c *meCache) isGone(id int64, maxAge time.Duration) bool {
+func (c *meCache[T]) isGone(id int64, maxAge time.Duration) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	at, ok := c.gone[id]
 	return ok && c.now().Sub(at) < maxAge
 }
 
-func (c *meCache) cached(id int64) *Me {
+func (c *meCache[T]) lookup(id int64) (T, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.m[id]
+	m, ok := c.m[id]
+	return m, ok
 }
 
-func (c *meCache) forget(id int64) {
+// cached: what is kept for id, or the zero value (nil).
+func (c *meCache[T]) cached(id int64) T {
+	m, _ := c.lookup(id)
+	return m
+}
+
+func (c *meCache[T]) forget(id int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.m, id)
