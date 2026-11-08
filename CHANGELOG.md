@@ -12,7 +12,7 @@ published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
   - **When you post:** a weekday × hour map of the last 30 days, your streak of days posting and the longest one, days with a post in the last 90.
   - **The other side:** who you fav and boost the most, your new followers, and the accounts you follow for over 30 days that didn't fav, boost or mention you in that time.
   - **Polls and bookmarks:** polls you created and their votes, polls you voted on, posts you bookmarked and the servers they come from.
-- **The database user reads less:** only the columns it uses of `users` (no e-mail, password hash or 2FA secret), `oauth_applications` (no client secrets) and `reports` (no comments). A test runs every query as that user to prove the grants are enough.
+- **The database user reads less:** only the columns it uses of `accounts` (never the accounts' signing keys), `users` (no e-mail, password hash or 2FA secret), `oauth_applications` (no client secrets) and `reports` (no comments). A test runs every query as that user to prove the grants are enough.
 - The extra cards need five more tables (`status_stats`, `tags`, `statuses_tags`, `bookmarks`, `poll_votes`); without the grant that part is just empty. `docs/database.sql` creates or updates the database user in one go, and the README now walks through the whole install.
 
 ## 0.4.2 — 2026-11-08

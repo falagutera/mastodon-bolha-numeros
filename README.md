@@ -88,7 +88,7 @@ else is optional. Five steps:
 [`docs/database.sql`](docs/database.sql) creates the user `numeros`, makes it read-only
 (`default_transaction_read_only`, 60 s `statement_timeout`, at most 4 connections) and grants
 `SELECT` on what it reads and nothing else: whole tables where everything is readable anyway,
-and only the needed columns of `users` (no e-mail, password hash or 2FA), `oauth_applications`
+and only the needed columns of `accounts` (no signing keys), `users` (no e-mail, password hash or 2FA), `oauth_applications`
 (no client secrets) and `reports` (no comments). Run it as a superuser on the Mastodon database,
 then set the password interactively (so it stays out of the shell history):
 
@@ -99,7 +99,7 @@ psql -d mastodon_production -c '\password numeros'
 
 It is safe to run again, and that is also how you upgrade: new versions may read new tables
 (0.5.0 added `status_stats`, `tags`, `statuses_tags`, `bookmarks` and `poll_votes`, and narrowed
-`users`, `oauth_applications` and `reports` to columns). The last query lists what the user can
+`accounts`, `users`, `oauth_applications` and `reports` to columns). The last query lists what the user can
 read, table by table.
 
 It works through pgBouncer in transaction mode (simple protocol, one connection for the hourly

@@ -28,10 +28,14 @@ SELECT format('GRANT CONNECT ON DATABASE %I TO numeros', current_database()) \ge
 GRANT USAGE ON SCHEMA public TO numeros;
 
 -- The main page (the hourly round). Whole tables where every column may be read anyway;
--- only the columns numeros uses where the table holds secrets (users: e-mail, password
--- hash, 2FA; oauth_applications: client secrets; reports: the reporters' comments).
-REVOKE SELECT ON users, oauth_applications, reports FROM numeros;
-GRANT SELECT ON accounts, account_stats, statuses, notifications, favourites, follows,
+-- only the columns numeros uses where the table holds secrets (accounts: each local
+-- account's signing key; users: e-mail, password hash, 2FA; oauth_applications: client
+-- secrets; reports: the reporters' comments).
+REVOKE SELECT ON accounts, users, oauth_applications, reports FROM numeros;
+GRANT SELECT (id, username, domain, display_name, avatar_file_name, url, uri, note, created_at, actor_type,
+  discoverable, hide_collections, memorial, moved_to_account_id, silenced_at, suspended_at, sensitized_at)
+  ON accounts TO numeros;
+GRANT SELECT ON account_stats, statuses, notifications, favourites, follows,
   preview_cards, preview_cards_statuses, media_attachments, polls, instances TO numeros;
 GRANT SELECT (account_id, approved, confirmed_at, disabled, created_at, current_sign_in_at) ON users TO numeros;
 GRANT SELECT (id, name) ON oauth_applications TO numeros;
