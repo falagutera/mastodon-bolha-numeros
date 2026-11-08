@@ -148,6 +148,7 @@ func (s *store) more(ctx context.Context, id int64, now time.Time, c config, b *
 			m.Tags, err = bars(ctx, tx, `SELECT COALESCE(NULLIF(t.display_name, ''), t.name), count(*) FROM statuses s
 				JOIN statuses_tags st ON st.status_id = s.id JOIN tags t ON t.id = st.tag_id
 				WHERE s.account_id = $1 AND s.id >= $2 AND s.deleted_at IS NULL AND s.reblog_of_id IS NULL AND s.visibility < 3
+				AND COALESCE(s.spoiler_text, '') = '' -- a tag behind a warning stays behind it
 				GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 10`, id, snowflake(month))
 			return err
 		}); err != nil {
@@ -253,8 +254,8 @@ func (s *store) ownPosts(ctx context.Context, tx pgx.Tx, id int64, now, month, l
 		if edited {
 			m.Edited++
 		}
-		if vis == 3 {
-			continue // what follows is about posts others read
+		if vis >= 3 {
+			continue // direct (and limited, on forks that have it): what follows is about posts others read
 		}
 		if reply {
 			m.Replies++
@@ -461,6 +462,7 @@ func (s *store) otherSide(ctx context.Context, tx pgx.Tx, id int64, month time.T
 	if m.FavTo, err = people(ctx, tx, c, `SELECT `+personCols+`, count(*) FROM favourites f
 		JOIN statuses s ON s.id = f.status_id JOIN accounts a ON a.id = s.account_id
 		WHERE f.account_id = $1 AND f.id >= $2 AND f.created_at >= $3 AND a.id <> $1 AND a.suspended_at IS NULL
+		AND s.visibility < 3 -- favs on direct messages would say who the person talks to in private
 		GROUP BY a.id ORDER BY 7 DESC, a.username, a.id LIMIT 10`, id, first["favourites"], month); err != nil {
 		return fmt.Errorf("favs given to: %w", err)
 	}

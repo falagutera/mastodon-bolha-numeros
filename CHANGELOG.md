@@ -8,9 +8,9 @@ published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 - **Much more on `/minhaconta`**, only for you, never on the public page:
   - **Your media** of the last 30 days: photos, videos, GIFs and audio, how many have alt text, the space everything you uploaded takes, and your newest photos (not from direct messages, nor anything behind a content warning).
   - **Your best posts:** the 5 with most favs and boosts and the one with most replies (a post behind a warning shows only the warning); your most voted poll.
-  - **How you post:** public, unlisted, followers-only, local-only and direct; content warnings, edits, self-deleting posts, replies against new posts, direct messages received (the count only); your languages, apps and hashtags.
+  - **How you post:** public, unlisted, followers-only, local-only and direct; content warnings, edits, self-deleting posts, replies against new posts, direct messages received (the count only); your languages, apps and hashtags (none from posts behind a warning).
   - **When you post:** a weekday × hour map of the last 30 days, your streak of days posting and the longest one, days with a post in the last 90.
-  - **The other side:** who you fav and boost the most, your new followers, and the accounts you follow for over 30 days that didn't fav, boost or mention you in that time.
+  - **The other side:** who you fav and boost the most (favs on direct messages left out), your new followers, and the accounts you follow for over 30 days that didn't fav, boost or mention you in that time.
   - **Polls and bookmarks:** polls you created and their votes, polls you voted on, posts you bookmarked and the servers they come from.
 - **The database user reads less:** only the columns it uses of `accounts` (never the accounts' signing keys), `users` (no e-mail, password hash or 2FA secret), `oauth_applications` (no client secrets) and `reports` (no comments). A test runs every query as that user to prove the grants are enough.
 - The extra cards need five more tables (`status_stats`, `tags`, `statuses_tags`, `bookmarks`, `poll_votes`); without the grant that part is just empty. `docs/database.sql` creates or updates the database user in one go, and the README now walks through the whole install.

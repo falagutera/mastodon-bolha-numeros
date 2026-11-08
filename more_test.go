@@ -136,6 +136,11 @@ func TestMoreQueries(t *testing.T) {
 	// ana favs two of bia's posts and one of fala's.
 	b1, b2, f1 := post(2, 2*day, ""), post(2, 2*day, ""), post(10, 2*day, "")
 	exec(`INSERT INTO favourites (account_id, status_id, created_at) VALUES (1, $1, $4), (1, $2, $4), (1, $3, $4)`, b1, b2, f1, at(time.Hour))
+	// ana also favs a direct message from quieto: that never shows who she talks to.
+	qdm := post(11, 2*day, "visibility = 3")
+	exec(`INSERT INTO favourites (account_id, status_id, created_at) VALUES (1, $1, $2)`, qdm, at(time.Hour))
+	// A limited post (visibility 4, some forks): counted as direct, not in languages or apps.
+	post(1, 6*day, "visibility = 4, language = 'xx', application_id = 1")
 	// follows: fala and eva follow ana; ana follows bia, fala and quieto for long, novo since last week.
 	exec(`INSERT INTO follows (account_id, target_account_id, created_at) VALUES (10, 1, $1), (6, 1, $1),
 		(1, 2, $2), (1, 10, $2), (1, 11, $2), (1, 12, $3)`, at(day), at(60*day), at(5*day))
@@ -147,7 +152,8 @@ func TestMoreQueries(t *testing.T) {
 	exec(`INSERT INTO polls (id, account_id, status_id, votes_count, created_at) VALUES (3, 1, $1, 50, $2)`, dmPoll, at(50*day))
 	exec(`INSERT INTO poll_votes (account_id, poll_id, choice) VALUES (1, 9, 0), (1, 9, 1)`)
 	exec(`INSERT INTO tags (id, name, display_name) VALUES (1, 'gatos', 'Gatos'), (2, 'segredo', '')`)
-	exec(`INSERT INTO statuses_tags VALUES ($1, 1), ($2, 1), ($3, 2)`, p1, p2, p4)
+	exec(`INSERT INTO statuses_tags VALUES ($1, 1), ($2, 1), ($3, 2), ($4, 3)`, p1, p2, p4, p3) // p3 is behind a warning
+	exec(`INSERT INTO tags (id, name) VALUES (3, 'atrasdoaviso')`)
 	exec(`INSERT INTO bookmarks (account_id, status_id, created_at) VALUES (1, $1, $3), (1, $2, $4)`, f1, b1, at(day), at(40*day))
 
 	if err := db.schema(ctx); err != nil {
@@ -177,7 +183,7 @@ func TestMoreQueries(t *testing.T) {
 	if m.Replied == nil || m.Replied.ID != p2 || m.Replied.Replies != 4 {
 		t.Errorf("most replied: %+v", m.Replied)
 	}
-	check("visibility", m.Vis, map[string]int64{"direct": 1, "local": 1, "private": 1, "public": 2, "unlisted": 1})
+	check("visibility", m.Vis, map[string]int64{"direct": 2, "local": 1, "private": 1, "public": 2, "unlisted": 1})
 	check("style", fmt.Sprint(m.CW, m.Expiring, m.Edited, m.Replies, m.New, m.DMsGot), "1 1 1 1 4 1")
 	check("langs", m.Langs, []Bar{{"?", 3}, {"en", 1}, {"pt", 1}})
 	check("apps", m.Apps, []Bar{{"Elk", 1}})
@@ -185,7 +191,7 @@ func TestMoreQueries(t *testing.T) {
 	if m.Heat[lt.Weekday()][lt.Hour()] < 1 {
 		t.Errorf("heat: nothing at %s %dh", lt.Weekday(), lt.Hour())
 	}
-	check("streaks", fmt.Sprint(m.Streak, m.BestStreak, m.ActiveDays), "2 2 6")
+	check("streaks", fmt.Sprint(m.Streak, m.BestStreak, m.ActiveDays), "2 2 7")
 	acct := func(ps []Person, values bool) string {
 		var out []string
 		for _, p := range ps {

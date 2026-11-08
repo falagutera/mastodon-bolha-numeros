@@ -70,7 +70,7 @@ followed, for today, 7 and 30 days; who talks to them the most; the links they s
   messages; a post behind a warning shows only the warning); how they post (public, unlisted,
   followers-only, local-only, direct; content warnings, edits, self-deleting posts, replies against
   new posts, and how many direct messages came in, the count only); when (a weekday × hour map,
-  streaks over 90 days), languages, apps and hashtags; who they fav and boost the most, their new
+  streaks over 90 days), languages, apps and hashtags (not from posts behind a warning); who they fav and boost the most, their new
   followers, and the accounts they follow for over 30 days that didn't fav, boost or mention them
   in that time; their polls and the votes on them, the polls they voted on, and their bookmarks
   with the servers they come from. Who blocked or muted them, reports, unfollows and who they
