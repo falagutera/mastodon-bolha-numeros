@@ -315,6 +315,9 @@ sign-in against a fake instance (state, PKCE, token revoked, forged cookies, for
 that a public page only shows what it should and goes away when it must.
 CI runs gofmt, vet, the tests against PostgreSQL 17, govulncheck and the shared security scanners.
 
+Changing the code, with or without a coding agent: [`AGENTS.md`](AGENTS.md) has the commands,
+a map of the files and the rules a change must keep.
+
 Versions are `X.Y.Z-BUILD` (VERSION + pipeline); every version needs its CHANGELOG entry,
 which is also the `/release-notes` page.
 
