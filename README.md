@@ -86,7 +86,7 @@ else is optional. Five steps:
 ### 1. The database user
 
 [`docs/database.sql`](docs/database.sql) creates the user `numeros`, makes it read-only
-(`default_transaction_read_only`, 60 s `statement_timeout`, at most 4 connections) and grants
+(`default_transaction_read_only`, 60 s `statement_timeout`) and grants
 `SELECT` on what it reads and nothing else: whole tables where everything is readable anyway,
 and only the needed columns of `accounts` (no signing keys), `users` (no e-mail, password hash or 2FA), `oauth_applications`
 (no client secrets) and `reports` (no comments). Run it as a superuser on the Mastodon database,

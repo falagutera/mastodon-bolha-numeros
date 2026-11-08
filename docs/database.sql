@@ -19,10 +19,11 @@ END $$;
 ALTER ROLE numeros PASSWORD :password;
 \endif
 
--- Never writes, never runs long, never holds many connections.
+-- Never writes, never runs long. (No CONNECTION LIMIT: behind pgBouncer the pool keeps idle
+-- server connections, more than the two numeros opens.)
 ALTER ROLE numeros SET default_transaction_read_only = on;
 ALTER ROLE numeros SET statement_timeout = '60s';
-ALTER ROLE numeros CONNECTION LIMIT 4;
+ALTER ROLE numeros CONNECTION LIMIT -1;
 
 SELECT format('GRANT CONNECT ON DATABASE %I TO numeros', current_database()) \gexec
 GRANT USAGE ON SCHEMA public TO numeros;
