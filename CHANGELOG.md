@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.4.2 — 2026-11-08
+
+- **The bolha menu shows up here too:** the pages now let same-origin scripts run, so the floating "● bolha" button the edge adds (as on the other bolha.us apps) loads. The pages themselves still carry no script.
+
 ## 0.4.1 — 2026-11-08
 
 - **"24 horas" instead of "Hoje":** the shortest period is now the last 24 hours, on the main page and on `/minhaconta`. "Today since midnight" was nearly empty right after midnight and looked like missing data.

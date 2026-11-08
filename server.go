@@ -51,7 +51,9 @@ func newServer(cfg config, col *collector) (*server, error) {
 			img = append(img, u.Scheme+"://"+u.Host)
 		}
 	}
-	csp := "default-src 'none'; style-src 'self'; img-src " + strings.Join(img, " ") +
+	// script-src/connect-src 'self': only for the bolha-bar the edge injects (/__bolha/bar.js and its
+	// services.json, same origin); the pages themselves carry no script.
+	csp := "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src " + strings.Join(img, " ") +
 		"; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 	meCSP := "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src " + strings.Join(img, " ") +
 		"; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -83,7 +85,7 @@ func headers(next http.Handler, csp, meCSP string) http.Handler {
 		h := w.Header()
 		if strings.HasPrefix(r.URL.Path, "/release-notes") {
 			// The shared release-notes page carries its own inline style and language switch.
-			h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+			h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 		} else if accountPath(r.URL.Path) {
 			h.Set("Content-Security-Policy", meCSP)
 		} else {

@@ -141,7 +141,8 @@ func TestPage(t *testing.T) {
 	}
 	res, body := get("/")
 	csp := res.Header.Get("Content-Security-Policy")
-	if !strings.Contains(csp, "img-src 'self' https://cache.example https://inst.example") || strings.Contains(csp, "unsafe") {
+	if !strings.Contains(csp, "img-src 'self' https://cache.example https://inst.example") || strings.Contains(csp, "unsafe") ||
+		!strings.Contains(csp, "script-src 'self'; connect-src 'self'") { // the edge's bolha-bar (same origin)
 		t.Errorf("csp: %s", csp)
 	}
 	for _, want := range []string{"Ana &lt;Lima&gt;", "@ana", "900 no total", "2.301", "mai 2022", "nos últimos 30 dias · 39%", "há 4 anos",
