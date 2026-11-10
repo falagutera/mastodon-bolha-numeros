@@ -3,6 +3,11 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.5.3 — 2026-11-10
+
+- **Backup cards:** with the two cards side by side, a value no longer breaks across lines under a long label ("hoje às 01:00 · 10 min" split, with the dot left on its own); the label wraps instead. On a phone, where the cards stack, a long value still wraps and the dot stays on its first line.
+- Look from `open/gcn/ui` 0.1.6: the numbers in a row of tiles line up when a label takes two lines.
+
 ## 0.5.2 — 2026-11-08
 
 - The look now comes from `open/gcn/ui` (`assets/style.css`, a synced copy, and `VISUAL.md`): `/numeros.css` serves it followed by numeros's own rules (`templates/numeros.css`). The page looks the same; numeros was the reference the shared look came from.

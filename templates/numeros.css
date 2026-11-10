@@ -82,6 +82,9 @@ a.brand{color:inherit;text-decoration:none}
 .bk .ret b{font-size:2rem;font-weight:800;letter-spacing:-.03em;line-height:1}
 .bk .ret span{color:var(--text-dim);font-size:.9rem}
 table.sw td.k{color:var(--text-dim)}
+/* backup cards side by side: the value stays on one line ("hoje às 01:00 · 10 min" broke under a long label) and the label wraps instead; stacked on a phone the value may wrap, with the dot on its first line */
+@media (min-width:721px){.bk table.sw td:last-child{white-space:nowrap}}
+.bk .st{align-items:flex-start}.bk .st i{flex:none;margin-top:.45em}
 .st{display:inline-flex;align-items:center;gap:6px}
 .st i{width:8px;height:8px;border-radius:50%;display:inline-block;background:#2fb36b}
 .st.bad i{background:#e5484d}

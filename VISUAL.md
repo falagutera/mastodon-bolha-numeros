@@ -1,6 +1,6 @@
 # VISUAL.md — the look of our apps
 
-<!-- open/gcn/ui 0.1.1 — copied by sync.sh; change it in open/gcn/ui, not in the copy. -->
+<!-- open/gcn/ui 0.1.6 — copied by sync.sh; change it in open/gcn/ui, not in the copy. -->
 
 Every web app we build looks like one family. The reference is **numeros**
 (`open/bolha/numeros`); atualiza and id follow it too. The stylesheet and this document live in
@@ -33,7 +33,9 @@ project's path (`GOAPP_FAMILY`).
    (`:root:root{…}`, `color-scheme: dark` alone). The only exception is generated content (a
    PNG, a card to export), never the page around it.
 4. **System fonts only.** `--sans: system-ui…`, `--mono: ui-monospace…`. No webfonts, no
-   `assets/fonts/`, no `font-src` in the CSP.
+   `assets/fonts/`, no `font-src` in the CSP. Exception: an image the app exports (poet's card)
+   may carry its own fonts, scoped to that image (`check.sh --card-fonts`); the page around it
+   uses the system fonts.
 5. **Never vendor `artefatos.css`.** It is the stylesheet of the artifact pages, not of apps.
 6. **Header**: `.top` with `.brand` (the `.bubble` in the accent + the app's own name — never
    "bolhaverse" or "app · domain"), and on the right the links as `.toggle` pills (release
@@ -56,6 +58,13 @@ project's path (`GOAPP_FAMILY`).
     `default-src 'none'`.
 13. **Accessible**: `aria-current` on the active link/language, labels on form fields, contrast
     of `--text-dim` on `--surface` as in the tokens (don't go lighter), focus visible.
+
+## Class names the stylesheet owns
+
+An app's own CSS must not reuse these names for something else (ajuda's category cards were
+`.cat`, the section title, and grew its 40px margin): `.accent`, `.brand`, `.btn`, `.bubble`, `.card`, `.cat`, `.danger`, `.hero`, `.hl`, `.info`, `.kicker`, `.lab`, `.langsel`, `.lede`, `.legend`, `.mono`, `.ok`, `.pill`, `.prose`, `.release`, `.relnotes`, `.rule`, `.secondary`, `.small`, `.stamp`, `.tile`, `.tiles`, `.toggle`, `.top`, `.toplinks`, `.val`, `.warn`, `.when`, `.wrap`.
+Overriding one of them on purpose (numeros's own sizes) is fine; reusing the name for another
+thing is not.
 
 ## Checking an app
 
