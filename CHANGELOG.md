@@ -3,6 +3,10 @@
 All notable changes to numeros. Versions follow [SemVer](https://semver.org/); images are
 published as `registry.gutocarvalho.net/images/numeros:<version>-<build>`.
 
+## 0.5.4 — 2026-11-10
+
+- **Rankings:** a long handle (`@tiagojferreira`, `@rafzmilhomens@organica.social`) no longer runs over the "no total" count or out of the card; it ends in "…" like the name above it. Showed up mostly with a larger browser font.
+
 ## 0.5.3 — 2026-11-10
 
 - **Backup cards:** with the two cards side by side, a value no longer breaks across lines under a long label ("hoje às 01:00 · 10 min" split, with the dot left on its own); the label wraps instead. On a phone, where the cards stack, a long value still wraps and the dot stays on its first line.

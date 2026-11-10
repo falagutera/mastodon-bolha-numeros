@@ -32,7 +32,7 @@ ol.rank li:nth-child(-n+3) .n{color:var(--accent-strong);font-weight:700}
 .av{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--surface-2);border:1px solid var(--border)}
 .who{min-width:0;line-height:1.2}
 .who b{display:block;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.who span{font-family:var(--mono);font-size:.7rem;color:var(--text-faint)}
+.who span{display:block;font-family:var(--mono);font-size:.7rem;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .num{font-family:var(--mono);font-size:.82rem;font-variant-numeric:tabular-nums;text-align:right}
 .num small{display:block;color:var(--text-faint);font-size:.66rem}
 .bar{position:absolute;left:0;bottom:0;width:100%;height:2px;display:block}
@@ -61,7 +61,7 @@ table.sw td:last-child{font-family:var(--mono);text-align:right;color:var(--acce
 .soon{border:1px dashed var(--border-strong);border-radius:16px;padding:18px;color:var(--text-dim);font-size:.92rem}
 footer{margin:56px 0 40px;padding-top:20px;border-top:1px solid var(--border);color:var(--text-faint);font-size:.84rem;display:grid;gap:6px}
 footer b{color:var(--text-dim)}
-.who a{color:inherit;text-decoration:none}
+.who a{display:block;min-width:0;color:inherit;text-decoration:none}
 .who a:hover b{color:var(--accent-strong)}
 .h3{font-size:1rem;margin:22px 0 10px}
 .note{color:var(--text-faint);font-size:.88rem;margin:10px 0 0}
