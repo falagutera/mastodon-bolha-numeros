@@ -17,6 +17,16 @@ for bolha.us, in Portuguese (`/`) and English (`/en/`). AGPL-3.0.
 - **Backup** (optional, pluggable): retention, schedule, last run and sizes, one card per backup tool.
 - `/numeros.json` serves the same data.
 
+## Contents
+
+- [Screenshot](#screenshot)
+- [Privacy](#privacy)
+- [Your numbers](#your-numbers)
+- [Install](#install)
+- [Architecture](#architecture)
+- [Testing and security](#testing-and-security)
+- [Bot account](#bot-account)
+
 ## Screenshot
 
 [![numeros rendering a public instance dashboard](docs/screenshot.png)](https://numeros.bolha.us)
